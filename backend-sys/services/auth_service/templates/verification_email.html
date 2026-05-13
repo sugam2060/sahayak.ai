@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .header {
+            background-color: #4f46e5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+            line-height: 1.6;
+            color: #374151;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4f46e5;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #9ca3af;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Verify Your Account</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{{full_name}}</strong>,</p>
+            <p>Thank you for joining Sahayak! We're excited to have you on board. To get started, please verify your email address by clicking the button below:</p>
+            <div style="text-align: center;">
+                <a href="{{verify_link}}" class="button">Verify Email Address</a>
+            </div>
+            <p>If you did not create an account, you can safely ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Sahayak. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

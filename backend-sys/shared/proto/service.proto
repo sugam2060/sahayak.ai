@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package microservices;
+
+service AuthService {
+  rpc Register (RegisterRequest) returns (RegisterResponse);
+  rpc VerifyEmail (VerifyEmailRequest) returns (VerifyEmailResponse);
+  rpc Login (LoginRequest) returns (LoginResponse);
+  rpc VerifyAccessToken (VerifyAccessTokenRequest) returns (VerifyAccessTokenResponse);
+  rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+  string ip_address = 2;
+  string user_agent = 3;
+}
+
+message RefreshTokenResponse {
+  bool success = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+  string user_id = 4;
+  string organization_id = 5;
+  string message = 6;
+}
+
+message VerifyAccessTokenRequest {
+  string access_token = 1;
+}
+
+message VerifyAccessTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string full_name = 3;
+  string organization_id = 4;
+  string organization_name = 5;
+  string organization_slug = 6;
+  string role = 7;
+  string message = 8;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string ip_address = 3;
+  string user_agent = 4;
+}
+
+message LoginResponse {
+  bool success = 1;
+  string message = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  string user_id = 5;
+  string organization_id = 6;
+  bool is_verified = 7;
+}
+
+message RegisterRequest {
+  string org_name = 1;
+  string org_slug = 2;
+  string user_full_name = 3;
+  string user_email = 4;
+  string user_password = 5;
+}
+
+message RegisterResponse {
+  string organization_id = 1;
+  string user_id = 2;
+  string message = 3;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {
+  bool success = 1;
+  string message = 2;
+}
