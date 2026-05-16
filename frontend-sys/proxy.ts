@@ -56,7 +56,6 @@ export async function proxy(request: NextRequest) {
 
       // If tokens were refreshed by the backend (automatic refresh), 
       // we must propagate the new Set-Cookie headers to the browser.
-      // @ts-expect-error - getSetCookie is available in Next.js middleware runtime
       const newCookies = verifyResponse.headers.getSetCookie();
       if (newCookies && newCookies.length > 0) {
         const response = NextResponse.next();

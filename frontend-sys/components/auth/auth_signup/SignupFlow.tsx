@@ -48,7 +48,7 @@ export const SignupFlow = () => {
     setStep(0);
   };
 
-  const handleSubmit = async (data: SignupData) => {
+  const handleSubmit = async (data: Pick<SignupData, 'fullName' | 'email' | 'password' | 'confirmPassword'>) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { confirmPassword, ...userDetails } = data;
     const finalData = { ...formData, ...userDetails } as SignupData;
