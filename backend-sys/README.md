@@ -80,7 +80,8 @@ uv run -m services.api_gateway.main
 
 ### Terminal 3: Celery Worker
 ```powershell
-uv run celery -A shared.celery_app worker --loglevel=info --pool=solo
+uv run python -m celery -A shared.celery_app worker --loglevel=info --pool=solo
+
 ```
 
 ## 🧪 Testing Scenarios

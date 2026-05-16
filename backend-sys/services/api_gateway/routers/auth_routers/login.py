@@ -8,8 +8,10 @@ class LoginSchema(BaseModel):
     email: EmailStr
     password: str
 
+from fastapi.responses import JSONResponse
+
 @router.post("/login")
-async def login(request: Request, data: LoginSchema, response: Response):
+async def login(request: Request, data: LoginSchema):
     auth_stub = request.app.state.auth_stub
     
     try:
@@ -41,6 +43,21 @@ async def login(request: Request, data: LoginSchema, response: Response):
                 detail=grpc_response.message
             )
             
+        # Create response object
+        content = {
+            "success": True,
+            "message": grpc_response.message,
+            "user_id": grpc_response.user_id,
+            "organization_id": grpc_response.organization_id,
+            "is_verified": grpc_response.is_verified,
+            "full_name": grpc_response.full_name,
+            "organization_name": grpc_response.organization_name,
+            "organization_slug": grpc_response.organization_slug,
+            "email": grpc_response.email
+        }
+        
+        response = JSONResponse(content=content)
+        
         # Store tokens in HttpOnly cookies
         response.set_cookie(
             key="access_token",
@@ -48,7 +65,8 @@ async def login(request: Request, data: LoginSchema, response: Response):
             httponly=True,
             secure=False,  # Set to True in production (HTTPS)
             samesite="lax",
-            max_age=3600   # 1 hour
+            max_age=3600,   # 1 hour
+            path="/"
         )
         response.set_cookie(
             key="refresh_token",
@@ -56,16 +74,11 @@ async def login(request: Request, data: LoginSchema, response: Response):
             httponly=True,
             secure=False,  # Set to True in production (HTTPS)
             samesite="lax",
-            max_age=30 * 24 * 3600  # 30 days
+            max_age=30 * 24 * 3600,  # 30 days
+            path="/"
         )
 
-        return {
-            "success": True,
-            "message": grpc_response.message,
-            "user_id": grpc_response.user_id,
-            "organization_id": grpc_response.organization_id,
-            "is_verified": grpc_response.is_verified
-        }
+        return response
         
     except Exception as e:
         if isinstance(e, HTTPException):

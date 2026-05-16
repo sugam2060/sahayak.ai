@@ -69,6 +69,17 @@ class AuthService(service_pb2_grpc.AuthServiceServicer):
             context.set_details("Internal server error")
             return service_pb2.RefreshTokenResponse(success=False, message="An internal error occurred.")
 
+    async def Logout(self, request, context):
+        try:
+            from services.auth_service.logout import handle_logout
+            return await handle_logout(request)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("Internal server error")
+            return service_pb2.LogoutResponse(success=False, message="An internal error occurred.")
+
 async def serve():
     server = grpc.aio.server()
     service_pb2_grpc.add_AuthServiceServicer_to_server(AuthService(), server)

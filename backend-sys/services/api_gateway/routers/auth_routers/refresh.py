@@ -4,10 +4,11 @@ from shared.proto import service_pb2
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+from fastapi.responses import JSONResponse
+
 @router.api_route("/refresh_token", methods=["GET", "POST"])
 async def refresh_token(
     request: Request, 
-    response: Response, 
     refresh_token: Optional[str] = Cookie(None)
 ):
     """
@@ -41,26 +42,6 @@ async def refresh_token(
                 detail=grpc_response.message or "Invalid refresh token."
             )
             
-        # Set new access_token in cookie
-        response.set_cookie(
-            key="access_token",
-            value=grpc_response.access_token,
-            httponly=True,
-            secure=False,  # Set to True in production (HTTPS)
-            samesite="lax",
-            max_age=3600   # 1 hour
-        )
-        
-        # Update refresh_token cookie (Rotation)
-        response.set_cookie(
-            key="refresh_token",
-            value=grpc_response.refresh_token,
-            httponly=True,
-            secure=False,  # Set to True in production (HTTPS)
-            samesite="lax",
-            max_age=30 * 24 * 3600  # 30 days
-        )
-
         # 2. To return the full user object (same as /auth/me), 
         # we call VerifyAccessToken with the NEW token.
         verify_request = service_pb2.VerifyAccessTokenRequest(access_token=grpc_response.access_token)
@@ -73,17 +54,41 @@ async def refresh_token(
                 detail="Token refreshed but profile could not be retrieved."
             )
 
-        return {
+        content = {
             "success": True,
             "user": {
                 "user_id": verify_response.user_id,
-                "full_name": verify_response.full_name,
                 "organization_id": verify_response.organization_id,
                 "organization_name": verify_response.organization_name,
-                "organization_slug": verify_response.organization_slug,
                 "role": verify_response.role
             }
         }
+        
+        response = JSONResponse(content=content)
+        
+        # Set new access_token in cookie
+        response.set_cookie(
+            key="access_token",
+            value=grpc_response.access_token,
+            httponly=True,
+            secure=False,  # Set to True in production (HTTPS)
+            samesite="lax",
+            max_age=3600,   # 1 hour
+            path="/"
+        )
+        
+        # Update refresh_token cookie (Rotation)
+        response.set_cookie(
+            key="refresh_token",
+            value=grpc_response.refresh_token,
+            httponly=True,
+            secure=False,  # Set to True in production (HTTPS)
+            samesite="lax",
+            max_age=30 * 24 * 3600,  # 30 days
+            path="/"
+        )
+
+        return response
         
     except Exception as e:
         if isinstance(e, HTTPException):

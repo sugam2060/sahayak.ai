@@ -1,26 +1,203 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-plus-jakarta);
+  --font-heading: var(--font-sora);
   --font-mono: var(--font-geist-mono);
+  
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Spacing Tokens */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* Radius Tokens */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Custom Sahayak Colors */
+  --color-bg-canvas: #EBF1FB;
+  --color-purple-600: #7C63D4;
+  --color-purple-700: #6148C5;
+  --color-purple-100: #E0D9FF;
+  --color-purple-50: #F2EFFF;
+  --color-blue-500: #5E9EEB;
+  --color-blue-600: #4A8FD4;
+  --color-blue-100: #D4E8FF;
+  --color-status-open: #5E9EEB;
+  --color-status-pending: #C4975A;
+  --color-status-resolved: #A5AECE;
+  --color-status-bot: #7C63D4;
+
+  /* Platform Identity Colors */
+  --color-platform-instagram: #E1306C;
+  --color-platform-facebook: #1877F2;
+  --color-platform-whatsapp: #25D366;
+  --color-platform-messenger: #0084FF;
+  --color-platform-tiktok: #010101;
+  --color-platform-x: #1D9BF0;
+  --color-platform-telegram: #2AABEE;
+  --color-platform-linkedin: #0A66C2;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: #EBF1FB;
+  --foreground: #1c1b22;
+  
+  --primary: #6349b9;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #0560a9;
+  --secondary-foreground: #ffffff;
+  
+  --muted: #f2ecf6;
+  --muted-foreground: #6B7BA0;
+  
+  --accent: #7c63d4;
+  --accent-foreground: #ffffff;
+  
+  --card: rgba(255, 255, 255, 0.72);
+  --card-foreground: #1c1b22;
+  
+  --popover: #fdf7ff;
+  --popover-foreground: #1c1b22;
+  
+  --destructive: #DC2626;
+  --destructive-foreground: #ffffff;
+  
+  --border: #cac4d4;
+  --input: rgba(255, 255, 255, 0.75);
+  --ring: #644bbb;
+  
+  --radius: 0.5rem;
+
+  /* Font Families */
+  --font-sora: 'Sora', sans-serif;
+  --font-plus-jakarta: 'Plus Jakarta Sans', sans-serif;
+
+  /* Glassmorphism & Branded Elements */
+  --backdrop-blur: blur(20px);
+  --brand-gradient: linear-gradient(135deg, #7C63D4 0%, #5E9EEB 100%);
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
+  --shadow-auth: 0 8px 48px rgba(94, 87, 196, 0.13), 0 2px 12px rgba(94, 87, 196, 0.08);
+}
+
+.dark {
+  --background: #1c1b22;
+  --foreground: #fdf7ff;
+  
+  --primary: #ccbdff;
+  --primary-foreground: #1c1b22;
+  
+  --secondary: #a3c9ff;
+  --secondary-foreground: #1c1b22;
+  
+  --muted: #312f37;
+  --muted-foreground: #A5AECE;
+  
+  --accent: #7c63d4;
+  --accent-foreground: #ffffff;
+  
+  --card: rgba(49, 47, 55, 0.8);
+  --card-foreground: #fdf7ff;
+  
+  --popover: #1c1b22;
+  --popover-foreground: #fdf7ff;
+  
+  --border: #484552;
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #ccbdff;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-color: var(--background);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-tight;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .panel-base {
+    background-color: var(--card);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border: 1px solid rgba(255, 255, 255, 0.90);
+    border-radius: var(--radius-lg);
+  }
+
+  .auth-card {
+    background-color: var(--card);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border: 1px solid rgba(255, 255, 255, 0.90);
+    border-radius: 24px;
+    padding: 36px 38px;
+    max-width: 440px;
+    box-shadow: var(--shadow-auth);
+  }
+
+  .glass-panel {
+    background-color: var(--card);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border: 1px solid rgba(255, 255, 255, 0.90);
+    border-radius: var(--radius-lg);
+  }
+
+  .brand-gradient {
+    background: var(--brand-gradient);
+  }
+
+  .brand-text-gradient {
+    background: var(--brand-gradient);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
 }

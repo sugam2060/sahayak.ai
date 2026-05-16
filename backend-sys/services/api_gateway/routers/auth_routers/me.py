@@ -35,7 +35,7 @@ async def get_current_user(
             if request.cookies.get("refresh_token"):
                 raise HTTPException(
                     status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-                    headers={"Location": "/auth/refresh"}
+                    headers={"Location": "/auth/refresh_token"}
                 )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -44,10 +44,8 @@ async def get_current_user(
             
         return {
             "user_id": grpc_response.user_id,
-            "full_name": grpc_response.full_name,
             "organization_id": grpc_response.organization_id,
             "organization_name": grpc_response.organization_name,
-            "organization_slug": grpc_response.organization_slug,
             "role": grpc_response.role
         }
     except Exception as e:

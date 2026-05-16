@@ -42,17 +42,14 @@ async def handle_registration(request: service_pb2.RegisterRequest):
                 await session.flush()
                 
                 # 3. Store verification token in Redis (TTL: 24 hours)
-                redis_kwargs = {"decode_responses": True}
-                if REDIS_URL.startswith("rediss://"):
-                    redis_kwargs["ssl_cert_reqs"] = "none"
+                # Optimized: Store two mappings for fast lookup during login and verification
+                from shared.redis_pool import RedisPool
+                redis_client = RedisPool.get_client()
                 
-                redis_client = redis.from_url(REDIS_URL, **redis_kwargs)
-                await redis_client.setex(
-                    f"verify_user:{verification_token}",
-                    86400,  # 24 hours
-                    new_user.email
+                await asyncio.gather(
+                    redis_client.setex(f"verify_user:{verification_token}", 86400, new_user.email),
+                    redis_client.setex(f"verify_user_token:{new_user.email}", 86400, verification_token)
                 )
-                await redis_client.close()
                 
                 # 4. Link Owner back to Organization
                 new_org.owner_id = new_user.id

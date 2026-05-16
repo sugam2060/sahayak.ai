@@ -1,3 +1,4 @@
+import asyncio
 import redis.asyncio as redis
 from shared.database.engine import SessionLocal
 from shared.database.schema import User
@@ -10,11 +11,8 @@ async def handle_verify_email(request: service_pb2.VerifyEmailRequest):
     Handles email verification by checking the token in Redis.
     """
     token = request.token
-    redis_kwargs = {"decode_responses": True}
-    if REDIS_URL.startswith("rediss://"):
-        redis_kwargs["ssl_cert_reqs"] = "none"
-        
-    redis_client = redis.from_url(REDIS_URL, **redis_kwargs)
+    from shared.redis_pool import RedisPool
+    redis_client = RedisPool.get_client()
     
     try:
         # 1. Lookup email in Redis
@@ -29,7 +27,6 @@ async def handle_verify_email(request: service_pb2.VerifyEmailRequest):
         # 2. Update User in Database
         async with SessionLocal() as session:
             async with session.begin():
-                # Find user and update status
                 stmt = (
                     update(User)
                     .where(User.email == email)
@@ -37,8 +34,11 @@ async def handle_verify_email(request: service_pb2.VerifyEmailRequest):
                 )
                 await session.execute(stmt)
         
-        # 3. Cleanup: Remove token from Redis
-        await redis_client.delete(f"verify_user:{token}")
+        # 3. Cleanup: Remove both tokens from Redis in parallel
+        await asyncio.gather(
+            redis_client.delete(f"verify_user:{token}"),
+            redis_client.delete(f"verify_user_token:{email}")
+        )
         
         return service_pb2.VerifyEmailResponse(
             success=True,

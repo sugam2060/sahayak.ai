@@ -27,11 +27,8 @@ async def handle_verify_access_token(request: service_pb2.VerifyAccessTokenReque
     
     # 2. Check Redis for User Session
     try:
-        redis_kwargs = {"decode_responses": True}
-        if REDIS_URL.startswith("rediss://"):
-            redis_kwargs["ssl_cert_reqs"] = "none"
-        
-        redis_client = redis.from_url(REDIS_URL, **redis_kwargs)
+        from shared.redis_pool import RedisPool
+        redis_client = RedisPool.get_client()
         
         session_json = await redis_client.get(f"user_session:{user_id}")
         if not session_json:
@@ -42,7 +39,6 @@ async def handle_verify_access_token(request: service_pb2.VerifyAccessTokenReque
                 row = db_result.one_or_none()
                 
                 if not row:
-                    await redis_client.close()
                     return service_pb2.VerifyAccessTokenResponse(
                         valid=False,
                         message="User not found. Please log in again."
@@ -52,7 +48,6 @@ async def handle_verify_access_token(request: service_pb2.VerifyAccessTokenReque
                 
                 # Verify user is still active/verified
                 if not user.is_active or not user.is_verified:
-                    await redis_client.close()
                     return service_pb2.VerifyAccessTokenResponse(
                         valid=False,
                         message="Account is inactive or unverified."
@@ -74,8 +69,6 @@ async def handle_verify_access_token(request: service_pb2.VerifyAccessTokenReque
                     session_json
                 )
         
-        await redis_client.close()
-        
         # 3. Parse and Return Details
         session_data = json.loads(session_json)
         return service_pb2.VerifyAccessTokenResponse(
@@ -88,12 +81,9 @@ async def handle_verify_access_token(request: service_pb2.VerifyAccessTokenReque
             role=session_data["role"],
             message="Token verified successfully."
         )
-        
     except Exception as e:
-        print(f"Error verifying access token in Redis: {str(e)}")
-        # If Redis is down, we might still trust the JWT signature, 
-        # but the user requested checking Redis, so we follow that.
+        print(f"Error in token verification: {str(e)}")
         return service_pb2.VerifyAccessTokenResponse(
             valid=False,
-            message="Internal error during session verification."
+            message=f"Internal error during token verification: {str(e)}"
         )

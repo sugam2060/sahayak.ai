@@ -8,6 +8,16 @@ service AuthService {
   rpc Login (LoginRequest) returns (LoginResponse);
   rpc VerifyAccessToken (VerifyAccessTokenRequest) returns (VerifyAccessTokenResponse);
   rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc Logout (LogoutRequest) returns (LogoutResponse);
+}
+
+message LogoutRequest {
+  string access_token = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message RefreshTokenRequest {
@@ -55,6 +65,10 @@ message LoginResponse {
   string user_id = 5;
   string organization_id = 6;
   bool is_verified = 7;
+  string full_name = 8;
+  string organization_name = 9;
+  string organization_slug = 10;
+  string email = 11;
 }
 
 message RegisterRequest {
