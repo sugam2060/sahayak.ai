@@ -108,6 +108,7 @@ jobs:
               --name sahayak-auth-service \
               -p 50051:50051 \
               -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
+              -e AUTH_SERVICE_ADDR='${{ secrets.AUTH_SERVICE_ADDR }}' \
               -e REDIS_URL='${{ secrets.REDIS_URL }}' \
               -e APP_ENV='${{ secrets.APP_ENV }}' \
               -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
@@ -142,6 +143,7 @@ jobs:
               --name sahayak-chatai-service \
               -p 50052:50052 \
               -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
+              -e CHATAI_SERVICE_ADDR='${{ secrets.CHATAI_SERVICE_ADDR }}' \
               -e REDIS_URL='${{ secrets.REDIS_URL }}' \
               -e APP_ENV='${{ secrets.APP_ENV }}' \
               ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-chatai-service:latest
@@ -181,8 +183,8 @@ jobs:
               --name sahayak-api-gateway \
               -p 8000:8000 \
               -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
-              -e AUTH_SERVICE_ADDR='${{ secrets.AUTH_SERVICE_PRIVATE_IP }}:50051' \
-              -e CHATAI_SERVICE_ADDR='${{ secrets.CHATAI_SERVICE_PRIVATE_IP }}:50052' \
+              -e AUTH_SERVICE_ADDR='${{ secrets.AUTH_SERVICE_ADDR }}' \
+              -e CHATAI_SERVICE_ADDR='${{ secrets.CHATAI_SERVICE_ADDR }}' \
               -e REDIS_URL='${{ secrets.REDIS_URL }}' \
               -e GATEWAY_PORT='8000' \
               -e APP_ENV='${{ secrets.APP_ENV }}' \
