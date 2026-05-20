@@ -39,7 +39,7 @@ output "celery_worker_ecr_url" {
 }
 
 output "generated_private_key" {
-  value       = var.key_name == "" ? tls_private_key.key[0].private_key_pem : "Pre-existing key pair was used"
+  value       = file("${path.module}/id_ed25519")
   sensitive   = true
-  description = "PEM encoded private key if generated dynamically by Terraform"
+  description = "PEM encoded private key loaded from local id_ed25519 file"
 }

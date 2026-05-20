@@ -15,21 +15,14 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-# SSH Key Pair generation (fallback if key_name is not provided)
-resource "tls_private_key" "key" {
-  count     = var.key_name == "" ? 1 : 0
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
-
+# SSH Key Pair loaded from local file
 resource "aws_key_pair" "generated" {
-  count      = var.key_name == "" ? 1 : 0
   key_name   = "${var.project_name}-ssh-key"
-  public_key = tls_private_key.key[0].public_key_openssh
+  public_key = file("${path.module}/id_ed25519.pub")
 }
 
 locals {
-  selected_key_name = var.key_name != "" ? var.key_name : aws_key_pair.generated[0].key_name
+  selected_key_name = aws_key_pair.generated.key_name
 }
 
 # IAM Role & Policy for ECR read-only access
