@@ -91,10 +91,31 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.API_GATEWAY_HOST }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.AUTH_SERVICE_HOST }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.CHATAI_SERVICE_HOST }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.CELERY_WORKER_HOST }} >> ~/.ssh/known_hosts
+          
+          # Robustly scan hosts only if they are defined
+          if [ -n "${{ secrets.API_GATEWAY_HOST }}" ]; then
+            ssh-keyscan -H ${{ secrets.API_GATEWAY_HOST }} >> ~/.ssh/known_hosts
+          else
+            echo "Warning: API_GATEWAY_HOST secret is empty!"
+          fi
+          
+          if [ -n "${{ secrets.AUTH_SERVICE_HOST }}" ]; then
+            ssh-keyscan -H ${{ secrets.AUTH_SERVICE_HOST }} >> ~/.ssh/known_hosts
+          else
+            echo "Warning: AUTH_SERVICE_HOST secret is empty!"
+          fi
+          
+          if [ -n "${{ secrets.CHATAI_SERVICE_HOST }}" ]; then
+            ssh-keyscan -H ${{ secrets.CHATAI_SERVICE_HOST }} >> ~/.ssh/known_hosts
+          else
+            echo "Warning: CHATAI_SERVICE_HOST secret is empty!"
+          fi
+          
+          if [ -n "${{ secrets.CELERY_WORKER_HOST }}" ]; then
+            ssh-keyscan -H ${{ secrets.CELERY_WORKER_HOST }} >> ~/.ssh/known_hosts
+          else
+            echo "Warning: CELERY_WORKER_HOST secret is empty!"
+          fi
 
       # 1. Deploy Auth Service
       - name: Deploy Auth Service
