@@ -6,7 +6,7 @@ celery_app = Celery(
     "sahayak_tasks",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["shared.mail_service"]
+    include=["services.workers.mail_service"]
 )
 
 # Optional configuration

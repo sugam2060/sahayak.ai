@@ -53,5 +53,3 @@ async def handle_verify_email(request: service_pb2.VerifyEmailRequest):
             success=False,
             message="An internal error occurred during verification. Please try again later."
         )
-    finally:
-        await redis_client.close()

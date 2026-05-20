@@ -59,6 +59,11 @@ class AuthServiceStub(object):
                 request_serializer=shared_dot_proto_dot_service__pb2.RefreshTokenRequest.SerializeToString,
                 response_deserializer=shared_dot_proto_dot_service__pb2.RefreshTokenResponse.FromString,
                 _registered_method=True)
+        self.Logout = channel.unary_unary(
+                '/microservices.AuthService/Logout',
+                request_serializer=shared_dot_proto_dot_service__pb2.LogoutRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.LogoutResponse.FromString,
+                _registered_method=True)
 
 
 class AuthServiceServicer(object):
@@ -94,6 +99,12 @@ class AuthServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Logout(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AuthServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -121,6 +132,11 @@ def add_AuthServiceServicer_to_server(servicer, server):
                     servicer.RefreshToken,
                     request_deserializer=shared_dot_proto_dot_service__pb2.RefreshTokenRequest.FromString,
                     response_serializer=shared_dot_proto_dot_service__pb2.RefreshTokenResponse.SerializeToString,
+            ),
+            'Logout': grpc.unary_unary_rpc_method_handler(
+                    servicer.Logout,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.LogoutRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.LogoutResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -258,6 +274,105 @@ class AuthService(object):
             '/microservices.AuthService/RefreshToken',
             shared_dot_proto_dot_service__pb2.RefreshTokenRequest.SerializeToString,
             shared_dot_proto_dot_service__pb2.RefreshTokenResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Logout(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.AuthService/Logout',
+            shared_dot_proto_dot_service__pb2.LogoutRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.LogoutResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class ChatServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.GetAIResponse = channel.unary_unary(
+                '/microservices.ChatService/GetAIResponse',
+                request_serializer=shared_dot_proto_dot_service__pb2.ChatRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.ChatResponse.FromString,
+                _registered_method=True)
+
+
+class ChatServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def GetAIResponse(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ChatServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'GetAIResponse': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAIResponse,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.ChatRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.ChatResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'microservices.ChatService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('microservices.ChatService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ChatService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def GetAIResponse(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ChatService/GetAIResponse',
+            shared_dot_proto_dot_service__pb2.ChatRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.ChatResponse.FromString,
             options,
             channel_credentials,
             insecure,

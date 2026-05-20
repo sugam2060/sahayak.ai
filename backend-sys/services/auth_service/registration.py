@@ -5,6 +5,7 @@ from shared.database.schema import Organization, User, UserRole
 from shared.proto import service_pb2
 import grpc
 import uuid
+import asyncio
 import redis.asyncio as redis
 from pathlib import Path
 from shared.config import FRONTEND_URL, REDIS_URL
@@ -62,7 +63,7 @@ async def handle_registration(request: service_pb2.RegisterRequest):
                 verify_link = f"{FRONTEND_URL}/verify/user/{verification_token}"
                 html_content = template_content.replace("{{full_name}}", new_user.full_name).replace("{{verify_link}}", verify_link)
                 
-                from shared.mail_service import send_verification_email
+                from services.workers.mail_service import send_verification_email
                 send_verification_email.delay(
                     email=new_user.email,
                     subject="Verify your Sahayak Account",

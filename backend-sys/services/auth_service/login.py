@@ -203,11 +203,3 @@ async def handle_login(request: service_pb2.LoginRequest):
         import traceback
         traceback.print_exc()
         return service_pb2.LoginResponse(success=False, message="Internal server error.")
-    except Exception as e:
-        print(f"ERROR in handle_login: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return service_pb2.LoginResponse(
-            success=False,
-            message="An internal server error occurred. Please try again later."
-        )

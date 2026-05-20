@@ -93,3 +93,17 @@ message VerifyEmailResponse {
   bool success = 1;
   string message = 2;
 }
+
+service ChatService {
+  rpc GetAIResponse (ChatRequest) returns (ChatResponse);
+}
+
+message ChatRequest {
+  string prompt = 1;
+  string user_id = 2;
+  string organization_id = 3;
+}
+
+message ChatResponse {
+  string response = 1;
+}

@@ -34,3 +34,10 @@ JWT_SECRET = config("JWT_SECRET", default="your-secret-key")
 JWT_ALGORITHM = config("JWT_ALGORITHM", default="HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = config("ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=60)
 REFRESH_TOKEN_EXPIRE_DAYS = config("REFRESH_TOKEN_EXPIRE_DAYS", cast=int, default=30)
+
+# Environment and TikTok Configuration
+APP_ENV = config("APP_ENV", default="development")
+TIKTOK_APP_ID = config("TIKTOK_APP_ID", default="")
+TIKTOK_APP_SECRET = config("TIKTOK_APP_SECRET", default="")
+TIKTOK_ACC_HOLDER_AUTH_URL = config("TIKTOK_ACC_HOLDER_AUTH_URL", default="")
+TIKTOK_ACC_HOLDER_REDIRECT_URL = config("TIKTOK_ACC_HOLDER_REDIRECT_URL", default="")

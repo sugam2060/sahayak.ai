@@ -24,33 +24,43 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1ashared/proto/service.proto\x12\rmicroservices\"T\n\x13RefreshTokenRequest\x12\x15\n\rrefresh_token\x18\x01 \x01(\t\x12\x12\n\nip_address\x18\x02 \x01(\t\x12\x12\n\nuser_agent\x18\x03 \x01(\t\"\x8f\x01\n\x14RefreshTokenResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x02 \x01(\t\x12\x15\n\rrefresh_token\x18\x03 \x01(\t\x12\x0f\n\x07user_id\x18\x04 \x01(\t\x12\x17\n\x0forganization_id\x18\x05 \x01(\t\x12\x0f\n\x07message\x18\x06 \x01(\t\"0\n\x18VerifyAccessTokenRequest\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x01 \x01(\t\"\xbc\x01\n\x19VerifyAccessTokenResponse\x12\r\n\x05valid\x18\x01 \x01(\x08\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x11\n\tfull_name\x18\x03 \x01(\t\x12\x17\n\x0forganization_id\x18\x04 \x01(\t\x12\x19\n\x11organization_name\x18\x05 \x01(\t\x12\x19\n\x11organization_slug\x18\x06 \x01(\t\x12\x0c\n\x04role\x18\x07 \x01(\t\x12\x0f\n\x07message\x18\x08 \x01(\t\"W\n\x0cLoginRequest\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\x12\x12\n\nip_address\x18\x03 \x01(\t\x12\x12\n\nuser_agent\x18\x04 \x01(\t\"\xf5\x01\n\rLoginResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x03 \x01(\t\x12\x15\n\rrefresh_token\x18\x04 \x01(\t\x12\x0f\n\x07user_id\x18\x05 \x01(\t\x12\x17\n\x0forganization_id\x18\x06 \x01(\t\x12\x13\n\x0bis_verified\x18\x07 \x01(\x08\x12\x11\n\tfull_name\x18\x08 \x01(\t\x12\x19\n\x11organization_name\x18\t \x01(\t\x12\x19\n\x11organization_slug\x18\n \x01(\t\x12\r\n\x05\x65mail\x18\x0b \x01(\t\"x\n\x0fRegisterRequest\x12\x10\n\x08org_name\x18\x01 \x01(\t\x12\x10\n\x08org_slug\x18\x02 \x01(\t\x12\x16\n\x0euser_full_name\x18\x03 \x01(\t\x12\x12\n\nuser_email\x18\x04 \x01(\t\x12\x15\n\ruser_password\x18\x05 \x01(\t\"M\n\x10RegisterResponse\x12\x17\n\x0forganization_id\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\"#\n\x12VerifyEmailRequest\x12\r\n\x05token\x18\x01 \x01(\t\"7\n\x13VerifyEmailResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xb5\x03\n\x0b\x41uthService\x12K\n\x08Register\x12\x1e.microservices.RegisterRequest\x1a\x1f.microservices.RegisterResponse\x12T\n\x0bVerifyEmail\x12!.microservices.VerifyEmailRequest\x1a\".microservices.VerifyEmailResponse\x12\x42\n\x05Login\x12\x1b.microservices.LoginRequest\x1a\x1c.microservices.LoginResponse\x12\x66\n\x11VerifyAccessToken\x12\'.microservices.VerifyAccessTokenRequest\x1a(.microservices.VerifyAccessTokenResponse\x12W\n\x0cRefreshToken\x12\".microservices.RefreshTokenRequest\x1a#.microservices.RefreshTokenResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1ashared/proto/service.proto\x12\rmicroservices\"%\n\rLogoutRequest\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x01 \x01(\t\"2\n\x0eLogoutResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"T\n\x13RefreshTokenRequest\x12\x15\n\rrefresh_token\x18\x01 \x01(\t\x12\x12\n\nip_address\x18\x02 \x01(\t\x12\x12\n\nuser_agent\x18\x03 \x01(\t\"\x8f\x01\n\x14RefreshTokenResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x02 \x01(\t\x12\x15\n\rrefresh_token\x18\x03 \x01(\t\x12\x0f\n\x07user_id\x18\x04 \x01(\t\x12\x17\n\x0forganization_id\x18\x05 \x01(\t\x12\x0f\n\x07message\x18\x06 \x01(\t\"0\n\x18VerifyAccessTokenRequest\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x01 \x01(\t\"\xbc\x01\n\x19VerifyAccessTokenResponse\x12\r\n\x05valid\x18\x01 \x01(\x08\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x11\n\tfull_name\x18\x03 \x01(\t\x12\x17\n\x0forganization_id\x18\x04 \x01(\t\x12\x19\n\x11organization_name\x18\x05 \x01(\t\x12\x19\n\x11organization_slug\x18\x06 \x01(\t\x12\x0c\n\x04role\x18\x07 \x01(\t\x12\x0f\n\x07message\x18\x08 \x01(\t\"W\n\x0cLoginRequest\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\x12\x12\n\nip_address\x18\x03 \x01(\t\x12\x12\n\nuser_agent\x18\x04 \x01(\t\"\xf5\x01\n\rLoginResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x14\n\x0c\x61\x63\x63\x65ss_token\x18\x03 \x01(\t\x12\x15\n\rrefresh_token\x18\x04 \x01(\t\x12\x0f\n\x07user_id\x18\x05 \x01(\t\x12\x17\n\x0forganization_id\x18\x06 \x01(\t\x12\x13\n\x0bis_verified\x18\x07 \x01(\x08\x12\x11\n\tfull_name\x18\x08 \x01(\t\x12\x19\n\x11organization_name\x18\t \x01(\t\x12\x19\n\x11organization_slug\x18\n \x01(\t\x12\r\n\x05\x65mail\x18\x0b \x01(\t\"x\n\x0fRegisterRequest\x12\x10\n\x08org_name\x18\x01 \x01(\t\x12\x10\n\x08org_slug\x18\x02 \x01(\t\x12\x16\n\x0euser_full_name\x18\x03 \x01(\t\x12\x12\n\nuser_email\x18\x04 \x01(\t\x12\x15\n\ruser_password\x18\x05 \x01(\t\"M\n\x10RegisterResponse\x12\x17\n\x0forganization_id\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\"#\n\x12VerifyEmailRequest\x12\r\n\x05token\x18\x01 \x01(\t\"7\n\x13VerifyEmailResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"G\n\x0b\x43hatRequest\x12\x0e\n\x06prompt\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x17\n\x0forganization_id\x18\x03 \x01(\t\" \n\x0c\x43hatResponse\x12\x10\n\x08response\x18\x01 \x01(\t2\xfc\x03\n\x0b\x41uthService\x12K\n\x08Register\x12\x1e.microservices.RegisterRequest\x1a\x1f.microservices.RegisterResponse\x12T\n\x0bVerifyEmail\x12!.microservices.VerifyEmailRequest\x1a\".microservices.VerifyEmailResponse\x12\x42\n\x05Login\x12\x1b.microservices.LoginRequest\x1a\x1c.microservices.LoginResponse\x12\x66\n\x11VerifyAccessToken\x12\'.microservices.VerifyAccessTokenRequest\x1a(.microservices.VerifyAccessTokenResponse\x12W\n\x0cRefreshToken\x12\".microservices.RefreshTokenRequest\x1a#.microservices.RefreshTokenResponse\x12\x45\n\x06Logout\x12\x1c.microservices.LogoutRequest\x1a\x1d.microservices.LogoutResponse2W\n\x0b\x43hatService\x12H\n\rGetAIResponse\x12\x1a.microservices.ChatRequest\x1a\x1b.microservices.ChatResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'shared.proto.service_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_REFRESHTOKENREQUEST']._serialized_start=45
-  _globals['_REFRESHTOKENREQUEST']._serialized_end=129
-  _globals['_REFRESHTOKENRESPONSE']._serialized_start=132
-  _globals['_REFRESHTOKENRESPONSE']._serialized_end=275
-  _globals['_VERIFYACCESSTOKENREQUEST']._serialized_start=277
-  _globals['_VERIFYACCESSTOKENREQUEST']._serialized_end=325
-  _globals['_VERIFYACCESSTOKENRESPONSE']._serialized_start=328
-  _globals['_VERIFYACCESSTOKENRESPONSE']._serialized_end=516
-  _globals['_LOGINREQUEST']._serialized_start=518
-  _globals['_LOGINREQUEST']._serialized_end=605
-  _globals['_LOGINRESPONSE']._serialized_start=608
-  _globals['_LOGINRESPONSE']._serialized_end=853
-  _globals['_REGISTERREQUEST']._serialized_start=855
-  _globals['_REGISTERREQUEST']._serialized_end=975
-  _globals['_REGISTERRESPONSE']._serialized_start=977
-  _globals['_REGISTERRESPONSE']._serialized_end=1054
-  _globals['_VERIFYEMAILREQUEST']._serialized_start=1056
-  _globals['_VERIFYEMAILREQUEST']._serialized_end=1091
-  _globals['_VERIFYEMAILRESPONSE']._serialized_start=1093
-  _globals['_VERIFYEMAILRESPONSE']._serialized_end=1148
-  _globals['_AUTHSERVICE']._serialized_start=1151
-  _globals['_AUTHSERVICE']._serialized_end=1588
+  _globals['_LOGOUTREQUEST']._serialized_start=45
+  _globals['_LOGOUTREQUEST']._serialized_end=82
+  _globals['_LOGOUTRESPONSE']._serialized_start=84
+  _globals['_LOGOUTRESPONSE']._serialized_end=134
+  _globals['_REFRESHTOKENREQUEST']._serialized_start=136
+  _globals['_REFRESHTOKENREQUEST']._serialized_end=220
+  _globals['_REFRESHTOKENRESPONSE']._serialized_start=223
+  _globals['_REFRESHTOKENRESPONSE']._serialized_end=366
+  _globals['_VERIFYACCESSTOKENREQUEST']._serialized_start=368
+  _globals['_VERIFYACCESSTOKENREQUEST']._serialized_end=416
+  _globals['_VERIFYACCESSTOKENRESPONSE']._serialized_start=419
+  _globals['_VERIFYACCESSTOKENRESPONSE']._serialized_end=607
+  _globals['_LOGINREQUEST']._serialized_start=609
+  _globals['_LOGINREQUEST']._serialized_end=696
+  _globals['_LOGINRESPONSE']._serialized_start=699
+  _globals['_LOGINRESPONSE']._serialized_end=944
+  _globals['_REGISTERREQUEST']._serialized_start=946
+  _globals['_REGISTERREQUEST']._serialized_end=1066
+  _globals['_REGISTERRESPONSE']._serialized_start=1068
+  _globals['_REGISTERRESPONSE']._serialized_end=1145
+  _globals['_VERIFYEMAILREQUEST']._serialized_start=1147
+  _globals['_VERIFYEMAILREQUEST']._serialized_end=1182
+  _globals['_VERIFYEMAILRESPONSE']._serialized_start=1184
+  _globals['_VERIFYEMAILRESPONSE']._serialized_end=1239
+  _globals['_CHATREQUEST']._serialized_start=1241
+  _globals['_CHATREQUEST']._serialized_end=1312
+  _globals['_CHATRESPONSE']._serialized_start=1314
+  _globals['_CHATRESPONSE']._serialized_end=1346
+  _globals['_AUTHSERVICE']._serialized_start=1349
+  _globals['_AUTHSERVICE']._serialized_end=1857
+  _globals['_CHATSERVICE']._serialized_start=1859
+  _globals['_CHATSERVICE']._serialized_end=1946
 # @@protoc_insertion_point(module_scope)
