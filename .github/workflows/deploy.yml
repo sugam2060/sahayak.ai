@@ -5,6 +5,46 @@ on:
     branches:
       - main
 
+env:
+  AWS_REGION: 'ap-south-1'
+  ECR_REGISTRY_URL: '317538169930.dkr.ecr.ap-south-1.amazonaws.com'
+  
+  # Host Public IPs (Update these when you recreate prototype EC2 instances)
+  API_GATEWAY_HOST: '3.111.31.246'
+  AUTH_SERVICE_HOST: '3.111.58.230'
+  CHATAI_SERVICE_HOST: '3.7.252.255'
+  CELERY_WORKER_HOST: '3.111.35.133'
+  
+  # Service Addresses (IP:Port)
+  AUTH_SERVICE_ADDR: '3.111.58.230:50051'
+  CHATAI_SERVICE_ADDR: '3.7.252.255:50052'
+
+  # Application Configuration (from backend-sys/.env)
+  DATABASE_URL: 'postgresql+asyncpg://neondb_owner:npg_cbp7TLsoWMK8@ep-summer-glade-a15cjavy-pooler.ap-southeast-1.aws.neon.tech/neondb?ssl=require'
+  REDIS_URL: 'rediss://default:gQAAAAAAATClAAIgcDFlY2NlODM1MmEwZmE0NGFkYmNlMmQyNTJjNjRlZmUyOQ@nice-salmon-77989.upstash.io:6379?ssl_cert_reqs=none'
+  GATEWAY_PORT: '8000'
+  APP_ENV: 'development'
+  
+  # JWT Configurations
+  JWT_SECRET: 'akjhdsfiuqh3iwurhfdndv45u6tk45hjawklejhsf'
+  JWT_ALGORITHM: 'HS256'
+  ACCESS_TOKEN_EXPIRE_MINUTES: '60'
+  REFRESH_TOKEN_EXPIRE_DAYS: '30'
+
+  # SMTP Configurations
+  SMTP_HOST: 'smtp.gmail.com'
+  SMTP_PORT: '587'
+  SMTP_USER: 'sugampudasain3@gmail.com'
+  SMTP_PASSWORD: 'xcgw kbro epae igkb'
+  MAIL_FROM: 'no-reply@sahayak.com'
+  FRONTEND_URL: 'http://localhost:3000'
+
+  # TikTok API
+  TIKTOK_APP_ID: '7641437823639224337'
+  TIKTOK_APP_SECRET: 'a7dae898acf82c3c386daef334a684ec930305a1'
+  TIKTOK_ACC_HOLDER_AUTH_URL: 'https://www.tiktok.com/v2/auth/authorize?client_key=7641437823639224337&scope=user.info.basic%2Cuser.info.username%2Cuser.info.stats%2Cuser.info.profile%2Cuser.account.type%2Cuser.insights%2Cvideo.list%2Cvideo.insights%2Ccomment.list%2Ccomment.list.manage%2Cvideo.publish%2Cvideo.upload%2Cbiz.spark.auth%2Cdiscovery.search.words&response_type=code&redirect_uri=https%3A%2F%2Fsahayak.sugampudasain.xyz'
+  TIKTOK_ACC_HOLDER_REDIRECT_URL: 'https://sahayak.sugampudasain.xyz'
+
 jobs:
   build-and-push:
     name: Build & Push Images to ECR
@@ -19,7 +59,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to Amazon ECR
         id: login-ecr
@@ -93,129 +133,129 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           
           # Robustly scan hosts only if they are defined
-          if [ -n "${{ secrets.API_GATEWAY_HOST }}" ]; then
-            ssh-keyscan -H ${{ secrets.API_GATEWAY_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "${{ env.API_GATEWAY_HOST }}" ]; then
+            ssh-keyscan -H ${{ env.API_GATEWAY_HOST }} >> ~/.ssh/known_hosts
           else
-            echo "Warning: API_GATEWAY_HOST secret is empty!"
+            echo "Warning: API_GATEWAY_HOST env is empty!"
           fi
           
-          if [ -n "${{ secrets.AUTH_SERVICE_HOST }}" ]; then
-            ssh-keyscan -H ${{ secrets.AUTH_SERVICE_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "${{ env.AUTH_SERVICE_HOST }}" ]; then
+            ssh-keyscan -H ${{ env.AUTH_SERVICE_HOST }} >> ~/.ssh/known_hosts
           else
-            echo "Warning: AUTH_SERVICE_HOST secret is empty!"
+            echo "Warning: AUTH_SERVICE_HOST env is empty!"
           fi
           
-          if [ -n "${{ secrets.CHATAI_SERVICE_HOST }}" ]; then
-            ssh-keyscan -H ${{ secrets.CHATAI_SERVICE_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "${{ env.CHATAI_SERVICE_HOST }}" ]; then
+            ssh-keyscan -H ${{ env.CHATAI_SERVICE_HOST }} >> ~/.ssh/known_hosts
           else
-            echo "Warning: CHATAI_SERVICE_HOST secret is empty!"
+            echo "Warning: CHATAI_SERVICE_HOST env is empty!"
           fi
           
-          if [ -n "${{ secrets.CELERY_WORKER_HOST }}" ]; then
-            ssh-keyscan -H ${{ secrets.CELERY_WORKER_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "${{ env.CELERY_WORKER_HOST }}" ]; then
+            ssh-keyscan -H ${{ env.CELERY_WORKER_HOST }} >> ~/.ssh/known_hosts
           else
-            echo "Warning: CELERY_WORKER_HOST secret is empty!"
+            echo "Warning: CELERY_WORKER_HOST env is empty!"
           fi
 
       # 1. Deploy Auth Service
       - name: Deploy Auth Service
         run: |
-          ssh ubuntu@${{ secrets.AUTH_SERVICE_HOST }} "
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+          ssh ubuntu@${{ env.AUTH_SERVICE_HOST }} "
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY_URL }}
             docker stop sahayak-auth-service || true
             docker rm sahayak-auth-service || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-auth-service:latest
+            docker pull ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-auth-service:latest
             docker run -d \
               --name sahayak-auth-service \
               -p 50051:50051 \
-              -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
-              -e AUTH_SERVICE_ADDR='${{ secrets.AUTH_SERVICE_ADDR }}' \
-              -e REDIS_URL='${{ secrets.REDIS_URL }}' \
-              -e APP_ENV='${{ secrets.APP_ENV }}' \
-              -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
-              -e JWT_ALGORITHM='${{ secrets.JWT_ALGORITHM }}' \
-              -e ACCESS_TOKEN_EXPIRE_MINUTES='${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}' \
-              -e REFRESH_TOKEN_EXPIRE_DAYS='${{ secrets.REFRESH_TOKEN_EXPIRE_DAYS }}' \
-              -e SMTP_HOST='${{ secrets.SMTP_HOST }}' \
-              -e SMTP_PORT='${{ secrets.SMTP_PORT }}' \
-              -e SMTP_USER='${{ secrets.SMTP_USER }}' \
-              -e SMTP_PASSWORD='${{ secrets.SMTP_PASSWORD }}' \
-              -e MAIL_FROM='${{ secrets.MAIL_FROM }}' \
-              -e FRONTEND_URL='${{ secrets.FRONTEND_URL }}' \
-              ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-auth-service:latest
+              -e DATABASE_URL='${{ env.DATABASE_URL }}' \
+              -e AUTH_SERVICE_ADDR='${{ env.AUTH_SERVICE_ADDR }}' \
+              -e REDIS_URL='${{ env.REDIS_URL }}' \
+              -e APP_ENV='${{ env.APP_ENV }}' \
+              -e JWT_SECRET='${{ env.JWT_SECRET }}' \
+              -e JWT_ALGORITHM='${{ env.JWT_ALGORITHM }}' \
+              -e ACCESS_TOKEN_EXPIRE_MINUTES='${{ env.ACCESS_TOKEN_EXPIRE_MINUTES }}' \
+              -e REFRESH_TOKEN_EXPIRE_DAYS='${{ env.REFRESH_TOKEN_EXPIRE_DAYS }}' \
+              -e SMTP_HOST='${{ env.SMTP_HOST }}' \
+              -e SMTP_PORT='${{ env.SMTP_PORT }}' \
+              -e SMTP_USER='${{ env.SMTP_USER }}' \
+              -e SMTP_PASSWORD='${{ env.SMTP_PASSWORD }}' \
+              -e MAIL_FROM='${{ env.MAIL_FROM }}' \
+              -e FRONTEND_URL='${{ env.FRONTEND_URL }}' \
+              ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-auth-service:latest
           "
 
       # 2. Run Database Migrations (via Auth Service container)
       - name: Run Database Migrations
         run: |
-          ssh ubuntu@${{ secrets.AUTH_SERVICE_HOST }} "
+          ssh ubuntu@${{ env.AUTH_SERVICE_HOST }} "
             docker exec sahayak-auth-service alembic upgrade head
           "
 
       # 3. Deploy ChatAI Service
       - name: Deploy ChatAI Service
         run: |
-          ssh ubuntu@${{ secrets.CHATAI_SERVICE_HOST }} "
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+          ssh ubuntu@${{ env.CHATAI_SERVICE_HOST }} "
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY_URL }}
             docker stop sahayak-chatai-service || true
             docker rm sahayak-chatai-service || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-chatai-service:latest
+            docker pull ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-chatai-service:latest
             docker run -d \
               --name sahayak-chatai-service \
               -p 50052:50052 \
-              -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
-              -e CHATAI_SERVICE_ADDR='${{ secrets.CHATAI_SERVICE_ADDR }}' \
-              -e REDIS_URL='${{ secrets.REDIS_URL }}' \
-              -e APP_ENV='${{ secrets.APP_ENV }}' \
-              ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-chatai-service:latest
+              -e DATABASE_URL='${{ env.DATABASE_URL }}' \
+              -e CHATAI_SERVICE_ADDR='${{ env.CHATAI_SERVICE_ADDR }}' \
+              -e REDIS_URL='${{ env.REDIS_URL }}' \
+              -e APP_ENV='${{ env.APP_ENV }}' \
+              ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-chatai-service:latest
           "
 
       # 4. Deploy Celery Worker
       - name: Deploy Celery Worker
         run: |
-          ssh ubuntu@${{ secrets.CELERY_WORKER_HOST }} "
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+          ssh ubuntu@${{ env.CELERY_WORKER_HOST }} "
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY_URL }}
             docker stop sahayak-celery-worker || true
             docker rm sahayak-celery-worker || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-celery-worker:latest
+            docker pull ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-celery-worker:latest
             docker run -d \
               --name sahayak-celery-worker \
-              -e REDIS_URL='${{ secrets.REDIS_URL }}' \
-              -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
-              -e APP_ENV='${{ secrets.APP_ENV }}' \
-              -e SMTP_HOST='${{ secrets.SMTP_HOST }}' \
-              -e SMTP_PORT='${{ secrets.SMTP_PORT }}' \
-              -e SMTP_USER='${{ secrets.SMTP_USER }}' \
-              -e SMTP_PASSWORD='${{ secrets.SMTP_PASSWORD }}' \
-              -e MAIL_FROM='${{ secrets.MAIL_FROM }}' \
-              -e FRONTEND_URL='${{ secrets.FRONTEND_URL }}' \
-              ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-celery-worker:latest
+              -e REDIS_URL='${{ env.REDIS_URL }}' \
+              -e DATABASE_URL='${{ env.DATABASE_URL }}' \
+              -e APP_ENV='${{ env.APP_ENV }}' \
+              -e SMTP_HOST='${{ env.SMTP_HOST }}' \
+              -e SMTP_PORT='${{ env.SMTP_PORT }}' \
+              -e SMTP_USER='${{ env.SMTP_USER }}' \
+              -e SMTP_PASSWORD='${{ env.SMTP_PASSWORD }}' \
+              -e MAIL_FROM='${{ env.MAIL_FROM }}' \
+              -e FRONTEND_URL='${{ env.FRONTEND_URL }}' \
+              ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-celery-worker:latest
           "
 
       # 5. Deploy API Gateway
       - name: Deploy API Gateway
         run: |
-          ssh ubuntu@${{ secrets.API_GATEWAY_HOST }} "
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+          ssh ubuntu@${{ env.API_GATEWAY_HOST }} "
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY_URL }}
             docker stop sahayak-api-gateway || true
             docker rm sahayak-api-gateway || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-api-gateway:latest
+            docker pull ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-api-gateway:latest
             docker run -d \
               --name sahayak-api-gateway \
               -p 8000:8000 \
-              -e DATABASE_URL='${{ secrets.DATABASE_URL }}' \
-              -e AUTH_SERVICE_ADDR='${{ secrets.AUTH_SERVICE_ADDR }}' \
-              -e CHATAI_SERVICE_ADDR='${{ secrets.CHATAI_SERVICE_ADDR }}' \
-              -e REDIS_URL='${{ secrets.REDIS_URL }}' \
-              -e GATEWAY_PORT='8000' \
-              -e APP_ENV='${{ secrets.APP_ENV }}' \
-              -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
-              -e JWT_ALGORITHM='${{ secrets.JWT_ALGORITHM }}' \
-              -e ACCESS_TOKEN_EXPIRE_MINUTES='${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}' \
-              -e REFRESH_TOKEN_EXPIRE_DAYS='${{ secrets.REFRESH_TOKEN_EXPIRE_DAYS }}' \
-              -e TIKTOK_APP_ID='${{ secrets.TIKTOK_APP_ID }}' \
-              -e TIKTOK_APP_SECRET='${{ secrets.TIKTOK_APP_SECRET }}' \
-              -e TIKTOK_ACC_HOLDER_AUTH_URL='${{ secrets.TIKTOK_ACC_HOLDER_AUTH_URL }}' \
-              -e TIKTOK_ACC_HOLDER_REDIRECT_URL='${{ secrets.TIKTOK_ACC_HOLDER_REDIRECT_URL }}' \
-              ${{ secrets.ECR_REGISTRY_URL }}/sahayak-ai-api-gateway:latest
+              -e DATABASE_URL='${{ env.DATABASE_URL }}' \
+              -e AUTH_SERVICE_ADDR='${{ env.AUTH_SERVICE_ADDR }}' \
+              -e CHATAI_SERVICE_ADDR='${{ env.CHATAI_SERVICE_ADDR }}' \
+              -e REDIS_URL='${{ env.REDIS_URL }}' \
+              -e GATEWAY_PORT='${{ env.GATEWAY_PORT }}' \
+              -e APP_ENV='${{ env.APP_ENV }}' \
+              -e JWT_SECRET='${{ env.JWT_SECRET }}' \
+              -e JWT_ALGORITHM='${{ env.JWT_ALGORITHM }}' \
+              -e ACCESS_TOKEN_EXPIRE_MINUTES='${{ env.ACCESS_TOKEN_EXPIRE_MINUTES }}' \
+              -e REFRESH_TOKEN_EXPIRE_DAYS='${{ env.REFRESH_TOKEN_EXPIRE_DAYS }}' \
+              -e TIKTOK_APP_ID='${{ env.TIKTOK_APP_ID }}' \
+              -e TIKTOK_APP_SECRET='${{ env.TIKTOK_APP_SECRET }}' \
+              -e TIKTOK_ACC_HOLDER_AUTH_URL='${{ env.TIKTOK_ACC_HOLDER_AUTH_URL }}' \
+              -e TIKTOK_ACC_HOLDER_REDIRECT_URL='${{ env.TIKTOK_ACC_HOLDER_REDIRECT_URL }}' \
+              ${{ env.ECR_REGISTRY_URL }}/sahayak-ai-api-gateway:latest
           "
