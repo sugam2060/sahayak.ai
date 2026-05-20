@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "instance_type" {
   type        = string
   description = "EC2 instance size for free-tier eligible prototype"
-  default     = "t2.micro"
+  default     = "t3.micro"
 }
 
 variable "project_name" {
