@@ -37,7 +37,7 @@ env:
   SMTP_USER: 'sugampudasain3@gmail.com'
   SMTP_PASSWORD: 'xcgw kbro epae igkb'
   MAIL_FROM: 'no-reply@sahayak.com'
-  FRONTEND_URL: 'http://localhost:3000'
+  FRONTEND_URL: 'https://sahayak.sugampudasain.xyz'
 
   # TikTok API
   TIKTOK_APP_ID: '7641437823639224337'
@@ -127,9 +127,11 @@ jobs:
     
     steps:
       - name: Configure SSH Key
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
           # Robustly scan hosts only if they are defined
