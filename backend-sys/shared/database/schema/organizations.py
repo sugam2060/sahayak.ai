@@ -30,4 +30,7 @@ class Organization(Base):
     teams: Mapped[list["Team"]] = relationship("Team", back_populates="organization", cascade="all, delete-orphan")
     products: Mapped[list["Product"]] = relationship("Product", back_populates="organization", cascade="all, delete-orphan")
     orders: Mapped[list["Order"]] = relationship("Order", back_populates="organization", cascade="all, delete-orphan")
+    # Connectors relationship: holds multiple connectors for different platforms.
+    # An organization can have multiple platform connectors, but is limited to at most one per platform type
+    # by the unique constraint `uq_org_platform_connector` in the `platform_connectors` table.
     connectors: Mapped[list["PlatformConnector"]] = relationship("PlatformConnector", back_populates="organization", cascade="all, delete-orphan")

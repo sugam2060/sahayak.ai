@@ -1,7 +1,7 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from shared.celery_app import celery_app
+from services.workers.celery_app import celery_app
 from shared.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, 
     MAIL_FROM, FRONTEND_URL
