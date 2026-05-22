@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { verifyEmail } from '@/lib/api_call/auth';
+import { verifyEmail } from '@/services/api/auth';
 import { toast } from 'sonner';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { AuthBackground } from '@/components/auth/auth_login/AuthBackground';
@@ -15,7 +15,7 @@ export default function VerificationPage() {
   const token = params.token as string;
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
-  const mutation = useMutation({
+  const { mutate, error } = useMutation({
     mutationFn: verifyEmail,
     onSuccess: (data) => {
       setStatus('success');
@@ -35,8 +35,8 @@ export default function VerificationPage() {
       router.push('/login');
       return;
     }
-    mutation.mutate(token);
-  }, [token, router, mutation]);
+    mutate(token);
+  }, [token, router, mutate]);
 
   return (
     <main className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden">
@@ -91,7 +91,7 @@ export default function VerificationPage() {
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold text-text-primary font-heading">Verification Failed</h2>
                 <p className="text-sm text-red-500 font-sans">
-                  {mutation.error?.message || "Invalid or expired token."}
+                  {error?.message || "Invalid or expired token."}
                 </p>
               </div>
               <div className="pt-4">

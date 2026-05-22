@@ -1,13 +1,12 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from services.workers.celery_app import celery_app
 from shared.config import (
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, 
     MAIL_FROM, FRONTEND_URL
 )
 
-@celery_app.task
+
 def send_verification_email(email: str, subject: str, html_content: str):
     """
     Background task to send a real verification email using smtplib.

@@ -24,9 +24,9 @@ echo "--> Starting backend auth_service (gRPC)..."
 echo "--> Starting backend api_gateway (FastAPI)..."
 (cd backend-sys && uv run -m services.api_gateway.main) &
 
-# 4. Run celery worker for mail_service
-echo "--> Starting celery worker for mail_service..."
-(cd backend-sys && uv run celery -A services.workers.celery_app.celery_app worker --loglevel=info -P solo) &
+# 4. Run Kafka worker for mail_service
+echo "--> Starting Kafka worker for mail_service..."
+(cd backend-sys && uv run -m services.workers.kafka_worker) &
 
 echo "=================================================="
 echo "All services started. Press Ctrl+C to stop them all."

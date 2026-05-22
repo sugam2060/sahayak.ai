@@ -19,6 +19,10 @@ class SlidingWindowRateLimiter(BaseHTTPMiddleware):
         self.redis = redis.from_url(REDIS_URL, **kwargs)
 
     async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for preflight (OPTIONS) requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip rate limiting if path is explicitly excluded
         if self.exclude_paths is not None:
             if any(request.url.path.startswith(path) for path in self.exclude_paths):

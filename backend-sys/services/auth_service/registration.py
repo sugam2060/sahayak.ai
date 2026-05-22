@@ -63,11 +63,14 @@ async def handle_registration(request: service_pb2.RegisterRequest):
                 verify_link = f"{FRONTEND_URL}/verify/user/{verification_token}"
                 html_content = template_content.replace("{{full_name}}", new_user.full_name).replace("{{verify_link}}", verify_link)
                 
-                from services.workers.mail_service import send_verification_email
-                send_verification_email.delay(
-                    email=new_user.email,
-                    subject="Verify your Sahayak Account",
-                    html_content=html_content
+                from shared.kafka_producer import KafkaProducerPool
+                await KafkaProducerPool.send_message(
+                    topic="mail-events",
+                    value={
+                        "email": new_user.email,
+                        "subject": "Verify your Sahayak Account",
+                        "html_content": html_content
+                    }
                 )
                 
                 return service_pb2.RegisterResponse(

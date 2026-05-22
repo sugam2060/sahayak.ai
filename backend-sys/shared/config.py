@@ -28,6 +28,7 @@ SMTP_USER = config("SMTP_USER", default="")
 SMTP_PASSWORD = config("SMTP_PASSWORD", default="")
 MAIL_FROM = config("MAIL_FROM", default="no-reply@sahayak.com")
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+BACKEND_URL = config("BACKEND_URL", default="https://unoared-unpesterous-amir.ngrok-free.dev")
 
 # JWT
 JWT_SECRET = config("JWT_SECRET", default="your-secret-key")
@@ -35,9 +36,18 @@ JWT_ALGORITHM = config("JWT_ALGORITHM", default="HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = config("ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=60)
 REFRESH_TOKEN_EXPIRE_DAYS = config("REFRESH_TOKEN_EXPIRE_DAYS", cast=int, default=30)
 
-# Environment and TikTok Configuration
+# Environment Configuration
 APP_ENV = config("APP_ENV", default="development")
-TIKTOK_APP_ID = config("TIKTOK_APP_ID", default="")
-TIKTOK_APP_SECRET = config("TIKTOK_APP_SECRET", default="")
-TIKTOK_ACC_HOLDER_AUTH_URL = config("TIKTOK_ACC_HOLDER_AUTH_URL", default="")
-TIKTOK_ACC_HOLDER_REDIRECT_URL = config("TIKTOK_ACC_HOLDER_REDIRECT_URL", default="")
+
+# Instagram / Facebook Configuration
+INSTAGRAM_CLIENT_ID = config("INSTAGRAM_CLIENT_ID", default="")
+INSTAGRAM_CLIENT_SECRET = config("INSTAGRAM_CLIENT_SECRET", default="")
+INSTAGRAM_REDIRECT_URI = config("INSTAGRAM_REDIRECT_URI", default="https://unoared-unpesterous-amir.ngrok-free.dev/connectors/oauth/callback/instagram")
+
+# Telegram Configuration
+TELEGRAM_API_BASE_URL = config("TELEGRAM_API_BASE_URL", default="https://api.telegram.org")
+
+# Kafka Configuration
+KAFKA_BOOTSTRAP_SERVERS = config("KAFKA_BOOTSTRAP_SERVERS", default="localhost:9092,localhost:9093,localhost:9094")
+
+

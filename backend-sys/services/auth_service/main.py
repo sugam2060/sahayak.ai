@@ -87,7 +87,12 @@ async def serve():
     server.add_insecure_port(f'[::]:{port}')
     print("Auth Service starting on port 50051...")
     await server.start()
-    await server.wait_for_termination()
+    try:
+        await server.wait_for_termination()
+    finally:
+        print("Stopping Auth Service and cleaning up resources...")
+        from shared.kafka_producer import KafkaProducerPool
+        await KafkaProducerPool.close()
 
 if __name__ == "__main__":
     asyncio.run(serve())

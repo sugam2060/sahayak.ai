@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FaInstagram, FaTiktok, FaDiscord, FaTelegram } from 'react-icons/fa';
+import { FaInstagram, FaDiscord, FaTelegram } from 'react-icons/fa';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader } from '@/components/ui/Loader';
@@ -24,13 +24,7 @@ const getPlatformConfig = (platform: PlatformType) => {
         brandText: 'Instagram',
         description: 'Sync DMs, comments, and automate customer message replies.',
       };
-    case 'tiktok':
-      return {
-        icon: FaTiktok,
-        brandColor: 'bg-black text-white dark:bg-zinc-900',
-        brandText: 'TikTok',
-        description: 'Auto-reply to product inquiries and manage TikTok shop chats.',
-      };
+
     case 'discord':
       return {
         icon: FaDiscord,

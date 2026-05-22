@@ -20,7 +20,7 @@ import { LoginData } from '@/types/auth';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { loginUser } from '@/lib/api_call/auth';
+import { loginUser } from '@/services/api/auth';
 
 import { useAuthStore } from '@/store/authStore';
 

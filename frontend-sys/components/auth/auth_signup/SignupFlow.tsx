@@ -7,7 +7,7 @@ import { SignupFormOrgDetail } from './SignupFormOrgDetail';
 import { SignupFormUserDetail } from './SignupFormUserDetail';
 import { SignupProgress } from './SignupProgress';
 import { SignupData } from '@/types/auth';
-import { registerUser } from '@/lib/api_call/auth';
+import { registerUser } from '@/services/api/auth';
 import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';

@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
-import { logoutUser } from '@/lib/api_call/auth';
+import { logoutUser } from '@/services/api/auth';
 
 export const Header = () => {
   const user = useAuthStore((state) => state.user);

@@ -1,96 +1,83 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PlatformConnector, PlatformType, TelegramConnectorConfig } from '@/types/connectors';
 
-const STORAGE_KEY = 'sahayak_platform_connectors';
-
-const DEFAULT_CONNECTORS: PlatformConnector[] = [
-  { id: '1', platform: 'instagram', displayName: 'Instagram', status: 'disconnected' },
-  { id: '2', platform: 'tiktok', displayName: 'TikTok', status: 'disconnected' },
-  { id: '3', platform: 'discord', displayName: 'Discord', status: 'disconnected' },
-  { id: '4', platform: 'telegram', displayName: 'Telegram', status: 'disconnected' },
-];
-
-// Helper to load connectors from localStorage or default
-const getStoredConnectors = (): PlatformConnector[] => {
-  if (typeof window === 'undefined') return DEFAULT_CONNECTORS;
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CONNECTORS));
-    return DEFAULT_CONNECTORS;
-  }
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return DEFAULT_CONNECTORS;
-  }
-};
-
-// Helper to save connectors
-const saveStoredConnectors = (connectors: PlatformConnector[]) => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(connectors));
-};
-
-// Mock delay function
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const useConnectors = () => {
   return useQuery<PlatformConnector[]>({
     queryKey: ['connectors'],
     queryFn: async () => {
-      await delay(600); // Simulate network latency
-      return getStoredConnectors();
-    },
-  });
-};
-
-export const useConnectOAuth = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (platform: PlatformType) => {
-      await delay(1200); // Simulate OAuth authentication latency
-      const connectors = getStoredConnectors();
-      const updated = connectors.map((c) => {
-        if (c.platform === platform) {
-          return {
-            ...c,
-            status: 'connected' as const,
-            connectedAt: new Date().toISOString(),
-            username: `${platform}_merchant_store`,
-          };
-        }
-        return c;
+      const response = await fetch(`${API_BASE_URL}/connectors`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
       });
-      saveStoredConnectors(updated);
-      return platform;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connectors'] });
+      
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to retrieve connection statuses from server.');
+      }
+      
+      return response.json();
     },
   });
 };
+
+// export const useConnectOAuth = () => {
+//   return useMutation({
+//     mutationFn: async (platform: PlatformType) => {
+//       const response = await fetch(`${API_BASE_URL}/connectors/oauth/url/${platform}`, {
+//         method: 'GET',
+//         headers: {
+//           'Content-Type': 'application/json',
+//         },
+//         credentials: 'include',
+//       });
+// 
+//       if (!response.ok) {
+//         const errData = await response.json().catch(() => ({}));
+//         throw new Error(errData.detail || `Failed to generate OAuth redirect link for ${platform}.`);
+//       }
+// 
+//       const result = await response.json();
+//       
+//       if (result.success && result.url) {
+//         // Redirect caller browser directly to the oauth handshake endpoint
+//         window.location.href = result.url;
+//       } else {
+//         throw new Error('Response did not return a valid redirection URL.');
+//       }
+//       
+//       return result;
+//     },
+//   });
+// };
 
 export const useConnectTelegram = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (config: TelegramConnectorConfig) => {
-      await delay(1500); // Simulate validation and bot token registration latency
-      const connectors = getStoredConnectors();
-      const updated = connectors.map((c) => {
-        if (c.platform === 'telegram') {
-          return {
-            ...c,
-            status: 'connected' as const,
-            connectedAt: new Date().toISOString(),
-            username: config.botUsername.startsWith('@') ? config.botUsername : `@${config.botUsername}`,
-          };
-        }
-        return c;
+      const response = await fetch(`${API_BASE_URL}/connectors/telegram/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          bot_username: config.botUsername,
+          access_token: config.accessToken,
+        }),
       });
-      saveStoredConnectors(updated);
-      return config;
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to authenticate Telegram credentials.');
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors'] });
@@ -103,21 +90,20 @@ export const useDisconnectPlatform = () => {
 
   return useMutation({
     mutationFn: async (platform: PlatformType) => {
-      await delay(800); // Simulate teardown latency
-      const connectors = getStoredConnectors();
-      const updated = connectors.map((c) => {
-        if (c.platform === platform) {
-          return {
-            ...c,
-            status: 'disconnected' as const,
-            connectedAt: undefined,
-            username: undefined,
-          };
-        }
-        return c;
+      const response = await fetch(`${API_BASE_URL}/connectors/disconnect/${platform}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
       });
-      saveStoredConnectors(updated);
-      return platform;
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || `Failed to disconnect platform: ${platform}.`);
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors'] });

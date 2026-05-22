@@ -115,7 +115,24 @@ async def handle_login(request: service_pb2.LoginRequest):
                     redis_client.setex(f"verify_user:{verification_token}", 86400, user_data['email']),
                     redis_client.setex(f"verify_user_token:{user_data['email']}", 86400, verification_token)
                 )
-                # ... send email (skipped for brevity here but should be in full implementation)
+                
+                # Send Verification Email (Background Task)
+                template_path = Path(__file__).parent / "templates" / "verification_email.html"
+                with open(template_path, "r") as f:
+                    template_content = f.read()
+                
+                verify_link = f"{FRONTEND_URL}/verify/user/{verification_token}"
+                html_content = template_content.replace("{{full_name}}", user_data['full_name']).replace("{{verify_link}}", verify_link)
+                
+                from shared.kafka_producer import KafkaProducerPool
+                await KafkaProducerPool.send_message(
+                    topic="mail-events",
+                    value={
+                        "email": user_data['email'],
+                        "subject": "Verify your Sahayak Account",
+                        "html_content": html_content
+                    }
+                )
                 return service_pb2.LoginResponse(
                     success=False, message="Your email is not verified. New link sent.", is_verified=False
                 )

@@ -7,6 +7,8 @@ from shared.proto import service_pb2, service_pb2_grpc
 from shared.config import AUTH_SERVICE_ADDR, CHATAI_SERVICE_ADDR, GATEWAY_PORT
 from services.api_gateway.middlewares.rate_limiter import SlidingWindowRateLimiter
 from services.api_gateway.routers.auth_routers import registration, verification, login, me, refresh, logout
+from services.api_gateway.routers.connectors import connector_route
+from services.api_gateway.routers.chat_routers import telegram_webhook_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,6 +52,8 @@ app.include_router(login.router)
 app.include_router(me.router)
 app.include_router(refresh.router)
 app.include_router(logout.router)
+app.include_router(connector_route.router)
+app.include_router(telegram_webhook_router)
 
 @app.get("/health")
 async def health_check():
