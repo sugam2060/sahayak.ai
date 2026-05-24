@@ -30,7 +30,6 @@ class KafkaProducerPool:
         """
         try:
             producer = await cls.get_producer()
-            logger.info(f"Publishing message to Kafka topic {topic}: {value}")
             await producer.send_and_wait(topic, value)
         except Exception as e:
             logger.error(f"Failed to publish message to Kafka topic {topic}: {str(e)}")

@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from shared.database.engine import SessionLocal
 from shared.database.schema.platform_connectors import PlatformConnector
+from services.workers.chat_service import route_telegram_message
 import logging
 
 logger = logging.getLogger("api_gateway.telegram_webhook")
@@ -23,7 +24,6 @@ async def telegram_webhook(
     """
     try:
         payload = await request.json()
-        print(f"[Telegram Webhook] Received payload for token: {bot_token[:10]}...", flush=True)
         
         # Look up the connector associated with this bot token
         stmt = select(PlatformConnector).where(
@@ -42,23 +42,18 @@ async def telegram_webhook(
         if connector:
             org_id = connector.business_id
             bot_name = connector.platform_account_name or "UnknownBot"
-            print(f"[Telegram Message] Bot: @{bot_name} | Org ID: {org_id}", flush=True)
             
-            message = payload.get("message", {})
-            if message:
-                sender = message.get("from", {})
-                chat = message.get("chat", {})
-                text = message.get("text", "")
-                sender_name = sender.get("username") or sender.get("first_name") or "Unknown"
-                print(f"   From: {sender_name} (ID: {sender.get('id')})", flush=True)
-                print(f"   Chat ID: {chat.get('id')} | Text: {text}", flush=True)
-            else:
-                print(f"   Payload (non-message update): {payload}", flush=True)
+            # Route webhook payload via Kafka topic 'chat_service'
+            await route_telegram_message(
+                org_id=str(org_id),
+                bot_name=bot_name,
+                bot_token=bot_token,
+                payload=payload
+            )
         else:
-            print(f"[Telegram Webhook] WARNING: Received update but no matching connector found for token: {bot_token[:10]}...", flush=True)
+            logger.warning(f"[Telegram Webhook] WARNING: Received update but no matching connector found for token: {bot_token[:10]}...")
             
         return {"status": "ok"}
     except Exception as e:
-        print(f"[Telegram Webhook] Error processing webhook: {str(e)}", flush=True)
         logger.error("Error processing Telegram webhook: %s", str(e), exc_info=True)
         return {"status": "error", "message": str(e)}

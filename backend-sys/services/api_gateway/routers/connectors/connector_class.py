@@ -1,10 +1,13 @@
 import os
 import sys
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from uuid import UUID
 import httpx
+
+logger = logging.getLogger("api_gateway.connector_class")
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -265,28 +268,33 @@ class TelegramConnector:
         url = f"{TELEGRAM_API_BASE_URL}/bot{access_token}/setWebhook"
         payload = {"url": webhook_url}
         
-        print(f"[TelegramConnector] Registering webhook. Target URL: {url} | Webhook: {webhook_url}", flush=True)
+        # Mask the token in logged URLs
+        masked_token = access_token[:8] + "..." + access_token[-4:] if len(access_token) > 12 else "***"
+        masked_url = f"{TELEGRAM_API_BASE_URL}/bot{masked_token}/setWebhook"
+        masked_webhook_url = f"{BACKEND_URL}/webhooks/telegram/{masked_token}"
+        
+        logger.debug(f"[TelegramConnector] Registering webhook. Target URL: {masked_url} | Webhook: {masked_webhook_url}")
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(url, json=payload, timeout=15.0)
-            print(f"[TelegramConnector] Webhook registration response. Status: {response.status_code}", flush=True)
+            logger.debug(f"[TelegramConnector] Webhook registration response. Status: {response.status_code}")
         except httpx.TimeoutException as e:
-            print(f"[TelegramConnector] Timeout while registering webhook: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] Timeout while registering webhook: {str(e)}")
             raise ConnectorError("Request to Telegram API timed out while setting up webhook. Please try again.", 502)
         except httpx.RequestError as e:
-            print(f"[TelegramConnector] Request error while registering webhook: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] Request error while registering webhook: {str(e)}")
             raise ConnectorError(f"Network error communicating with Telegram Bot API to set webhook: {str(e)}", 502)
 
         try:
             resp_data = response.json()
-            print(f"[TelegramConnector] Parsed setWebhook response: {resp_data}", flush=True)
+            logger.debug(f"[TelegramConnector] Parsed setWebhook response: {resp_data}")
         except Exception as e:
             resp_data = None
-            print(f"[TelegramConnector] Failed to parse setWebhook response body: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] Failed to parse setWebhook response body: {str(e)}")
 
         if response.status_code != 200 or not resp_data or not resp_data.get("ok"):
             description = resp_data.get("description") if resp_data else "Unknown error"
-            print(f"[TelegramConnector] Webhook registration failed: {description}", flush=True)
+            logger.error(f"[TelegramConnector] Webhook registration failed: {description}")
             raise ConnectorError(f"Failed to register webhook with Telegram: {description}", 400)
 
     async def disconnect(self, access_token: str) -> None:
@@ -294,47 +302,53 @@ class TelegramConnector:
         Cleans up resources when disconnecting a Telegram bot (e.g. deletes the webhook).
         """
         url = f"{TELEGRAM_API_BASE_URL}/bot{access_token}/deleteWebhook"
-        print(f"[TelegramConnector] Deleting webhook. Target URL: {url}", flush=True)
+        masked_token = access_token[:8] + "..." + access_token[-4:] if len(access_token) > 12 else "***"
+        masked_url = f"{TELEGRAM_API_BASE_URL}/bot{masked_token}/deleteWebhook"
+        
+        logger.debug(f"[TelegramConnector] Deleting webhook. Target URL: {masked_url}")
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(url, timeout=15.0)
-            print(f"[TelegramConnector] Webhook deletion response. Status: {response.status_code}", flush=True)
+            logger.debug(f"[TelegramConnector] Webhook deletion response. Status: {response.status_code}")
         except Exception as e:
             # We log but do not fail the disconnect process if Telegram is down or token is invalid
-            print(f"[TelegramConnector] Failed to delete webhook during disconnect: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] Failed to delete webhook during disconnect: {str(e)}")
 
     async def _validate_bot_token(self, access_token: str) -> dict:
         url = f"{TELEGRAM_API_BASE_URL}/bot{access_token}/getMe"
-        print(f"[TelegramConnector] Attempting to validate bot token. Target URL: {url}", flush=True)
+        masked_token = access_token[:8] + "..." + access_token[-4:] if len(access_token) > 12 else "***"
+        masked_url = f"{TELEGRAM_API_BASE_URL}/bot{masked_token}/getMe"
+        
+        logger.debug(f"[TelegramConnector] Attempting to validate bot token. Target URL: {masked_url}")
         
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, timeout=15.0)
-            print(f"[TelegramConnector] Received response. Status: {response.status_code}", flush=True)
+            logger.debug(f"[TelegramConnector] Received response. Status: {response.status_code}")
         except httpx.TimeoutException as e:
-            print(f"[TelegramConnector] TimeoutException encountered: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] TimeoutException encountered: {str(e)}")
             raise ConnectorError("Request to Telegram API timed out. Please try again.", 502)
         except httpx.RequestError as e:
-            print(f"[TelegramConnector] RequestError encountered: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] RequestError encountered: {str(e)}")
             raise ConnectorError(f"Network error communicating with Telegram Bot API: {str(e)}", 502)
 
         try:
             resp_data = response.json()
-            print(f"[TelegramConnector] Parsed JSON response: {resp_data}", flush=True)
+            logger.debug(f"[TelegramConnector] Parsed JSON response: {resp_data}")
         except Exception as e:
             resp_data = None
-            print(f"[TelegramConnector] Failed to parse response body as JSON: {str(e)}", flush=True)
+            logger.error(f"[TelegramConnector] Failed to parse response body as JSON: {str(e)}")
 
         if response.status_code != 200:
             description = resp_data.get("description") if resp_data else None
             if not description:
                 description = "Telegram token validation failed. Please check if your bot token is correct."
-            print(f"[TelegramConnector] Non-200 response description: {description}", flush=True)
+            logger.error(f"[TelegramConnector] Non-200 response description: {description}")
             raise ConnectorError(f"Telegram Bot API error: {description}", 400)
 
         if resp_data is None or resp_data.get("ok") is False:
             description = resp_data.get("description", "Unknown error") if resp_data else "Unknown error"
-            print(f"[TelegramConnector] ok=False response description: {description}", flush=True)
+            logger.error(f"[TelegramConnector] ok=False response description: {description}")
             raise ConnectorError(f"Telegram Bot API error: {description}", 400)
 
         return resp_data["result"]

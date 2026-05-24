@@ -1,11 +1,19 @@
 import grpc
 import asyncio
+import logging
+import sys
 from concurrent import futures
 from shared.proto import service_pb2_grpc, service_pb2
 from shared.database.engine import SessionLocal
 from shared.database.schema.users import User
 from sqlalchemy import select
 from shared.config import AUTH_SERVICE_ADDR
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 from services.auth_service.registration import handle_registration
 from services.auth_service.verification import handle_verify_email

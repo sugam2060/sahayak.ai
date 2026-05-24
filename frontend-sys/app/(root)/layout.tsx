@@ -11,7 +11,7 @@ export default function RootLayout({
       <Header />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 px-4 py-8 overflow-y-auto h-[calc(100vh-64px)]">
+        <main className="flex-1 p-2 md:px-4 md:py-8 overflow-y-auto h-[calc(100vh-64px)]">
           {children}
         </main>
       </div>

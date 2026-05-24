@@ -1,6 +1,9 @@
 import os
 import sys
 import jwt
+import logging
+
+logger = logging.getLogger("api_gateway.connector_route")
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
@@ -169,29 +172,27 @@ async def telegram_connect(
     Registers a Telegram bot using the bot username and token.
     Validates token credentials directly against Telegram API before saving.
     """
-    print(f"[Route /telegram/connect] Connect request received for username: {req.bot_username}", flush=True)
+    logger.debug(f"[Route /telegram/connect] Connect request received for username: {req.bot_username}")
     connector = TelegramConnector()
     try:
         business_id = UUID(current_user["organization_id"])
-        print(f"[Route /telegram/connect] Organization ID: {business_id}", flush=True)
+        logger.debug(f"[Route /telegram/connect] Organization ID: {business_id}")
         await connector.connect(
             session=db,
             business_id=business_id,
             bot_username=req.bot_username,
             access_token=req.access_token
         )
-        print(f"[Route /telegram/connect] Successfully connected bot @{req.bot_username}", flush=True)
+        logger.info(f"[Route /telegram/connect] Successfully connected bot @{req.bot_username}")
         return {
             "success": True,
             "message": f"Successfully connected bot @{req.bot_username} to your business workspace."
         }
     except ConnectorError as e:
-        print(f"[Route /telegram/connect] ConnectorError occurred: status_code={e.status_code}, message={e.message}", flush=True)
+        logger.warning(f"[Route /telegram/connect] ConnectorError occurred: status_code={e.status_code}, message={e.message}")
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
-        import traceback
-        print(f"[Route /telegram/connect] Unexpected Exception: {str(e)}", flush=True)
-        traceback.print_exc()
+        logger.error(f"[Route /telegram/connect] Unexpected Exception: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

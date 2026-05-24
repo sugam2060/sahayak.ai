@@ -1,13 +1,10 @@
 import time
 import redis.asyncio as redis
-from fastapi import Request, HTTPException, status
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 from shared.config import REDIS_URL
 
-class SlidingWindowRateLimiter(BaseHTTPMiddleware):
+class SlidingWindowRateLimiter:
     def __init__(self, app, window_size: int = 60, max_requests: int = 10, include_paths: list[str] = None, exclude_paths: list[str] = None):
-        super().__init__(app)
+        self.app = app
         self.window_size = window_size
         self.max_requests = max_requests
         self.include_paths = include_paths
@@ -18,22 +15,35 @@ class SlidingWindowRateLimiter(BaseHTTPMiddleware):
             kwargs["ssl_cert_reqs"] = "none"
         self.redis = redis.from_url(REDIS_URL, **kwargs)
 
-    async def dispatch(self, request: Request, call_next):
+    async def __call__(self, scope, receive, send):
+        # By-pass rate limiting for non-HTTP scopes (like WebSockets and Lifespan)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+
         # Skip rate limiting for preflight (OPTIONS) requests
-        if request.method == "OPTIONS":
-            return await call_next(request)
+        if method == "OPTIONS":
+            await self.app(scope, receive, send)
+            return
 
         # Skip rate limiting if path is explicitly excluded
         if self.exclude_paths is not None:
-            if any(request.url.path.startswith(path) for path in self.exclude_paths):
-                return await call_next(request)
+            if any(path.startswith(p) for p in self.exclude_paths):
+                await self.app(scope, receive, send)
+                return
 
         # Skip rate limiting if path is not in include_paths
         if self.include_paths is not None:
-            if not any(request.url.path.startswith(path) for path in self.include_paths):
-                return await call_next(request)
+            if not any(path.startswith(p) for p in self.include_paths):
+                await self.app(scope, receive, send)
+                return
 
-        client_ip = request.client.host
+        # Get client IP from scope
+        client = scope.get("client")
+        client_ip = client[0] if client else "unknown"
         now = time.time()
         
         current_window_start = int(now // self.window_size) * self.window_size
@@ -57,10 +67,22 @@ class SlidingWindowRateLimiter(BaseHTTPMiddleware):
         weighted_count = prev_count * (1 - fraction) + curr_count
 
         if weighted_count >= self.max_requests:
-            return JSONResponse(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"detail": "Too many requests. Please try again later."}
-            )
+            # Send HTTP 429 response via ASGI
+            response_body = b'{"detail": "Too many requests. Please try again later."}'
+            await send({
+                "type": "http.response.start",
+                "status": 429,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(response_body)).encode("utf-8")),
+                ]
+            })
+            await send({
+                "type": "http.response.body",
+                "body": response_body,
+                "more_body": False
+            })
+            return
 
         # Increment current window count and set TTL (window_size * 2 to cover prev/curr usage)
         async with self.redis.pipeline(transaction=True) as pipe:
@@ -68,5 +90,4 @@ class SlidingWindowRateLimiter(BaseHTTPMiddleware):
             pipe.expire(curr_key, self.window_size * 2)
             await pipe.execute()
 
-        response = await call_next(request)
-        return response
+        await self.app(scope, receive, send)

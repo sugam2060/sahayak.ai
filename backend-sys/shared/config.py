@@ -50,4 +50,8 @@ TELEGRAM_API_BASE_URL = config("TELEGRAM_API_BASE_URL", default="https://api.tel
 # Kafka Configuration
 KAFKA_BOOTSTRAP_SERVERS = config("KAFKA_BOOTSTRAP_SERVERS", default="localhost:9092,localhost:9093,localhost:9094")
 
+# MongoDB Configuration
+MONGODB_URL = config("MONGODB_URL", default="mongodb+srv://sugam2060:XNCBD8sEsMceta6m@cluster0.fxcagu2.mongodb.net/")
+MONGODB_DB_NAME = config("MONGODB_DB_NAME", default="sahayak_ai")
+
 

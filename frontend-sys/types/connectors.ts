@@ -1,5 +1,4 @@
-// export type PlatformType = 'instagram' | 'discord' | 'telegram';
-export type PlatformType = 'telegram';
+export type PlatformType = 'instagram' | 'discord' | 'telegram';
 
 export type ConnectorStatus = 'connected' | 'disconnected' | 'connecting';
 
