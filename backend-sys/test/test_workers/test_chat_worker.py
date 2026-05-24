@@ -1,7 +1,12 @@
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
-from services.workers.kafka_worker import KafkaChatWorker
+import importlib
+
+chat_worker_module = importlib.import_module("services.chatai-service.chat_worker")
+KafkaChatWorker = chat_worker_module.KafkaChatWorker
+chat_service_module = importlib.import_module("services.chatai-service.chat_service")
+graph_module = importlib.import_module("services.chatai-service.ai.graph")
 
 @pytest.mark.asyncio
 async def test_kafka_chat_worker_consume_inbound():
@@ -56,8 +61,8 @@ async def test_kafka_chat_worker_consume_inbound():
 
     worker = KafkaChatWorker()
     
-    with patch("services.workers.kafka_worker.AIOKafkaConsumer", return_value=mock_consumer), \
-         patch("services.workers.kafka_worker.MongoDBManager.get_db", return_value=mock_db), \
+    with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
+         patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
          patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
          
         mock_db.conversations.find_one = AsyncMock(return_value=None)
@@ -128,8 +133,8 @@ async def test_kafka_chat_worker_consume_outbound():
 
     worker = KafkaChatWorker()
     
-    with patch("services.workers.kafka_worker.AIOKafkaConsumer", return_value=mock_consumer), \
-         patch("services.workers.kafka_worker.MongoDBManager.get_db", return_value=mock_db), \
+    with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
+         patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
          patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
          
         # Mock pre-existing conversation containing 1 message
@@ -182,3 +187,108 @@ async def test_kafka_chat_worker_consume_outbound():
         assert tg_url == "https://api.telegram.org/botmock-token/sendMessage"
         assert tg_json["chat_id"] == 8888
         assert tg_json["text"] == "Hello outbound reply"
+
+@pytest.mark.asyncio
+async def test_kafka_chat_worker_ai_assigned_auto_reply():
+    # Mock MongoDBManager
+    mock_db = MagicMock()
+    mock_db.conversations = AsyncMock()
+    
+    # Mock AIOKafkaConsumer
+    mock_consumer = MagicMock()
+    mock_consumer.start = AsyncMock()
+    mock_consumer.stop = AsyncMock()
+    
+    # Create a mock message pack returned by getmany containing a buy message
+    mock_msg = MagicMock()
+    mock_msg.value = {
+        "org_id": "test-org-123",
+        "bot_name": "TestBot",
+        "bot_token": "mock-token",
+        "platform": "telegram",
+        "direction": "inbound",
+        "payload": {
+            "message": {
+                "message_id": 100,
+                "from": {
+                    "id": 9999,
+                    "first_name": "Alice",
+                    "username": "alice"
+                },
+                "chat": {
+                    "id": 8888
+                },
+                "text": "How much does the product cost?"
+            }
+        }
+    }
+    
+    class MockConsumerPack:
+        def __init__(self, msg):
+            self.msg = msg
+            self.called = False
+            
+        async def getmany(self, timeout_ms=1000):
+            if not self.called:
+                self.called = True
+                return {("chat_service", 0): [self.msg]}
+            else:
+                await asyncio.sleep(0.1)
+                raise asyncio.CancelledError()
+                
+    mock_pack = MockConsumerPack(mock_msg)
+    mock_consumer.getmany = mock_pack.getmany
+
+    worker = KafkaChatWorker()
+    
+    with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
+         patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
+         patch.object(graph_module, "invoke_customer_handling_graph", new_callable=AsyncMock, return_value="Here is a reply showing you are interested in purchasing a product.") as mock_invoke, \
+         patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+         
+        # Mock pre-existing conversation containing 1 message, with ai_assigned: True
+        mock_conversation = {
+            "organization_id": "test-org-123",
+            "platform": "telegram",
+            "bot_name": "TestBot",
+            "chat_id": 8888,
+            "ai_assigned": True,
+            "user": {
+                "sender_id": 9999,
+                "sender_name": "Alice"
+            },
+            "messages": []
+        }
+        mock_db.conversations.find_one = AsyncMock(return_value=mock_conversation)
+        
+        # Mock Telegram response to be successful
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+        
+        try:
+            await worker.start()
+        except asyncio.CancelledError:
+            pass
+            
+        # Verify MongoDB update_one was called twice (once for inbound, once for outbound AI auto-reply)
+        assert mock_db.conversations.update_one.call_count == 2
+        
+        # Inbound update validation
+        inbound_call_args = mock_db.conversations.update_one.call_args_list[0]
+        update_inbound = inbound_call_args[0][1]
+        assert update_inbound["$push"]["messages"]["intent"] == "buy"
+        
+        # Outbound update validation
+        outbound_call_args = mock_db.conversations.update_one.call_args_list[1]
+        update_outbound = outbound_call_args[0][1]
+        assert update_outbound["$push"]["messages"]["direction"] == "outbound"
+        assert "interested in purchasing a product" in update_outbound["$push"]["messages"]["text"]
+        
+        # Verify Telegram send API was called once for the outbound auto-reply
+        mock_post.assert_called_once()
+        tg_url = mock_post.call_args[0][0]
+        tg_json = mock_post.call_args[1]["json"]
+        assert tg_url == "https://api.telegram.org/botmock-token/sendMessage"
+        assert tg_json["chat_id"] == 8888
+        assert "interested in purchasing a product" in tg_json["text"]

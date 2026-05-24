@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
+from datetime import datetime, timezone
 from shared.database.mongodb import MongoDBManager
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.database.engine import SessionLocal
@@ -17,6 +18,11 @@ class SendReplyRequest(BaseModel):
     sender_id: int
     platform: str
     text: str
+
+class ToggleAIAssignedRequest(BaseModel):
+    sender_id: int
+    platform: str
+    ai_assigned: bool
 
 @router.get("")
 async def get_chat_list(organization_id: Optional[str] = None):
@@ -122,7 +128,9 @@ async def send_chat_reply_endpoint(
             )
             
         # 3. Publish to Kafka 'chat_service' topic
-        from services.workers.chat_service import route_outbound_reply
+        import importlib
+        _chat_service = importlib.import_module("services.chatai-service.chat_service")
+        route_outbound_reply = _chat_service.route_outbound_reply
         await route_outbound_reply(
             org_id=str(org_id),
             bot_name=bot_name,
@@ -141,6 +149,63 @@ async def send_chat_reply_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send reply: {str(e)}"
+        )
+
+@router.post("/toggle-ai")
+async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
+    """
+    Toggle the ai_assigned flag for a specific conversation by platform and sender_id.
+    """
+    try:
+        mongo_db = MongoDBManager.get_db()
+        
+        # Check if conversation exists
+        conv = await mongo_db.conversations.find_one({
+            "platform": req.platform.lower(),
+            "user.sender_id": req.sender_id
+        })
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found in MongoDB."
+            )
+            
+        # Update flag
+        await mongo_db.conversations.update_one(
+            {
+                "platform": req.platform.lower(),
+                "user.sender_id": req.sender_id
+            },
+            {
+                "$set": {
+                    "ai_assigned": req.ai_assigned,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            }
+        )
+        
+        # Broadcast the status update to WebSocket clients so the frontend state updates in real-time
+        try:
+            ws_event = {
+                "org_id": conv.get("organization_id"),
+                "platform": req.platform.lower(),
+                "sender_id": req.sender_id,
+                "type": "ai_assigned_toggle",
+                "ai_assigned": req.ai_assigned
+            }
+            # We broadcast it directly since api_gateway is hosting the WebSocket connections
+            await manager.broadcast(conv.get("organization_id"), ws_event)
+        except Exception as ws_err:
+            logger.error(f"Failed to broadcast ai_assigned_toggle: {ws_err}")
+            
+        return {"success": True, "ai_assigned": req.ai_assigned}
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to toggle AI assignment: {str(e)}"
         )
 
 # ================= WebSocket Support =================

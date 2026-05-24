@@ -28,8 +28,8 @@ echo "--> Starting backend api_gateway (FastAPI)..."
 echo "--> Starting Kafka worker for mail_service..."
 (cd backend-sys && uv run -m services.workers.kafka_worker) &
 
-# 5. Run backend chatai-service (gRPC & Chat consumer)
-echo "--> Starting backend chatai-service (gRPC)..."
+# 5. Run backend chatai-service (Kafka-based Agent)
+echo "--> Starting backend chatai-service (Kafka)..."
 (cd backend-sys && uv run -m services.chatai-service.main) &
 
 echo "=================================================="

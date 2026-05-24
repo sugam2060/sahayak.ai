@@ -89,3 +89,37 @@ export const useSendReply = () => {
     },
   });
 };
+
+export const useToggleAI = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (req: { sender_id: number; platform: string; ai_assigned: boolean }) => {
+      const response = await fetch(`${API_BASE_URL}/api/chats/toggle-ai`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(req),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to toggle AI assignment.');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate the chat history query so it pulls the updated conversation
+      queryClient.invalidateQueries({
+        queryKey: ['chat-history', variables.platform, variables.sender_id],
+      });
+      // Also invalidate the main chats list
+      queryClient.invalidateQueries({
+        queryKey: ['chats'],
+      });
+    },
+  });
+};

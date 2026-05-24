@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { InboxSidebar } from './InboxSidebar';
 import { ChatWindow } from './ChatWindow';
+import { useChats } from '@/services/api/chats';
 
 const InboxLayout = () => {
   const queryClient = useQueryClient();
@@ -12,26 +13,47 @@ const InboxLayout = () => {
   const [selectedChat, setSelectedChat] = useState<{ platform: string; senderId: number } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Fetch chats to verify active chats and select latest
+  const { data, isLoading, error: chatsError } = useChats(user?.organization_id);
+  const chats = data?.chats || [];
+
   const handleSelectChat = (chat: { platform: string; senderId: number } | null) => {
     setSelectedChat(chat);
     setIsSidebarOpen(false); // Auto-close sidebar drawer on mobile after selection
   };
 
+  // Automatically select the latest chat if there are chats and none is selected
   useEffect(() => {
-    if (!user?.organization_id) return;
+    if (chats.length > 0 && !selectedChat) {
+      const latestChat = chats[0];
+      setSelectedChat({
+        platform: latestChat.platform,
+        senderId: latestChat.user.sender_id,
+      });
+    }
+  }, [chats, selectedChat]);
 
-    // Use absolute WebSocket URL pointing to API Gateway port 8000
-    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProto}//localhost:8000/api/chats/ws/${user.organization_id}`;
+  useEffect(() => {
+    // Only connect if user is authenticated, has an organization_id, and there is at least one active chat
+    if (!user?.organization_id || chats.length === 0) return;
+
+    // Use absolute WebSocket URL derived from NEXT_PUBLIC_API_URL
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const wsProto = apiBaseUrl.startsWith('https:') ? 'wss:' : 'ws:';
+    const wsHost = apiBaseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const wsUrl = `${wsProto}//${wsHost}/api/chats/ws/${user.organization_id}`;
     
     console.log(`[WebSocket] Connecting to: ${wsUrl}`);
+    let isClosed = false;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
+      if (isClosed) return;
       console.log('[WebSocket] Connected to real-time events.');
     };
 
     socket.onmessage = (event) => {
+      if (isClosed) return;
       try {
         const data = JSON.parse(event.data);
         console.log('[WebSocket] Message event:', data);
@@ -84,6 +106,39 @@ const InboxLayout = () => {
               chats: chatsList
             };
           });
+        } else if (data.type === 'ai_assigned_toggle') {
+          const { platform, sender_id, ai_assigned } = data;
+
+          // 1. Update the chat history cache for this conversation
+          queryClient.setQueryData(['chat-history', platform, sender_id], (oldData: any) => {
+            if (!oldData || !oldData.chat) return oldData;
+            return {
+              ...oldData,
+              chat: {
+                ...oldData.chat,
+                ai_assigned: ai_assigned
+              }
+            };
+          });
+
+          // 2. Update the main chats list cache
+          queryClient.setQueryData(['chats', user.organization_id], (oldData: any) => {
+            if (!oldData || !oldData.chats) return oldData;
+            const chatsList = [...oldData.chats];
+            const idx = chatsList.findIndex(
+              (c: any) => c.platform === platform && c.user.sender_id === sender_id
+            );
+            if (idx !== -1) {
+              chatsList[idx] = {
+                ...chatsList[idx],
+                ai_assigned: ai_assigned
+              };
+            }
+            return {
+              ...oldData,
+              chats: chatsList
+            };
+          });
         }
       } catch (err) {
         console.error('[WebSocket] Error parsing event message:', err);
@@ -91,17 +146,20 @@ const InboxLayout = () => {
     };
 
     socket.onerror = (err) => {
-      console.error('[WebSocket] Connection error:', err);
+      if (isClosed) return;
+      console.error('[WebSocket] Connection failed. Check if API gateway is online.');
     };
 
     socket.onclose = () => {
+      if (isClosed) return;
       console.log('[WebSocket] Connection closed.');
     };
 
     return () => {
+      isClosed = true;
       socket.close();
     };
-  }, [user?.organization_id, queryClient]);
+  }, [user?.organization_id, chats.length, queryClient]);
 
   return (
     <div className="flex h-[calc(100vh-80px)] md:h-[calc(100vh-130px)] w-full overflow-hidden bg-[#EBF1FB] rounded-2xl border border-indigo-100/30 shadow-md relative">

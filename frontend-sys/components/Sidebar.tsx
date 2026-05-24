@@ -29,7 +29,7 @@ export const Sidebar = () => {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
-    { name: 'Inbox', icon: MessageSquare, href: '/inbox', badge: '12' },
+    { name: 'Inbox', icon: MessageSquare, href: '/inbox' },
     { name: 'Orders', icon: Package, href: '/orders' },
     { name: 'Products', icon: RiBox3Line, href: '/products' },
     { name: 'Connectors', icon: RiPlugLine, href: '/connectors' },
@@ -62,11 +62,6 @@ export const Sidebar = () => {
                     }`}
                   >
                     <item.icon size={18} className="transition-transform group-hover:scale-110" />
-                    {item.badge && !isActive && (
-                      <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-zinc-900 translate-x-1 -translate-y-1">
-                        {item.badge}
-                      </span>
-                    )}
                     {isActive && (
                       <div className="absolute -left-3 w-1 h-5 bg-primary rounded-r-full" />
                     )}

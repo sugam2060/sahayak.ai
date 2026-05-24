@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Plus, MoreHorizontal, Paperclip, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaTwitter } from 'react-icons/fa';
-import { useChatHistory, useSendReply } from '@/services/api/chats';
+import { useChatHistory, useSendReply, useToggleAI } from '@/services/api/chats';
 import { ContextPanel } from './ContextPanel';
 import { useAuthStore } from '@/store/authStore';
 import dynamic from 'next/dynamic';
@@ -43,7 +43,21 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   
   const { user } = useAuthStore();
   const sendReplyMutation = useSendReply();
+  const toggleAIMutation = useToggleAI();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleAI = async () => {
+    if (!chat || !selectedChat) return;
+    try {
+      await toggleAIMutation.mutateAsync({
+        sender_id: selectedChat.senderId,
+        platform: selectedChat.platform,
+        ai_assigned: !chat.ai_assigned,
+      });
+    } catch (err) {
+      console.error('Failed to toggle AI assignment:', err);
+    }
+  };
   const [showActions, setShowActions] = useState(false);
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -165,6 +179,21 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         </div>
         
         <div className="flex items-center gap-3 relative">
+          {chat && (
+            <button
+              type="button"
+              onClick={handleToggleAI}
+              disabled={toggleAIMutation.isPending}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all duration-200 cursor-pointer disabled:opacity-50 select-none shadow-sm
+                ${chat.ai_assigned
+                  ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${chat.ai_assigned ? 'text-white animate-pulse' : 'text-indigo-500'}`} />
+              <span>AI Auto-Reply: {chat.ai_assigned ? 'ON' : 'OFF'}</span>
+            </button>
+          )}
+
           <button 
             type="button" 
             onClick={() => setShowMenu(!showMenu)}
@@ -236,12 +265,20 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 {isInbound ? initials : orgInitials}
               </div>
               <div className={`space-y-1 ${isInbound ? '' : 'items-end flex flex-col'}`}>
-                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed
+                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed relative
                   ${isInbound 
                     ? 'bg-white/80 backdrop-blur-md border border-indigo-50 rounded-tl-none text-slate-700' 
                     : 'bg-indigo-50 border border-indigo-200 rounded-tr-none text-slate-800'}`}
                 >
-                  {msg.text}
+                  <div>{msg.text}</div>
+                  {isInbound && msg.intent === 'buy' && (
+                    <div className="mt-2 flex items-center gap-1.5 select-none">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[9px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm">
+                        <ShoppingBag className="w-2.5 h-2.5 text-emerald-600" />
+                        Buy Intent
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 px-1">
                   <span className="text-[10px] font-medium text-slate-400">{msgTime}</span>

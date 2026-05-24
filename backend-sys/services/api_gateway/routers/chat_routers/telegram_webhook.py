@@ -3,7 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from shared.database.engine import SessionLocal
 from shared.database.schema.platform_connectors import PlatformConnector
-from services.workers.chat_service import route_telegram_message
+import importlib
+_chat_service = importlib.import_module("services.chatai-service.chat_service")
+route_telegram_message = _chat_service.route_telegram_message
 import logging
 
 logger = logging.getLogger("api_gateway.telegram_webhook")

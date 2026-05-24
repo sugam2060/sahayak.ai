@@ -15,6 +15,7 @@ def event_loop():
 def mock_db_session():
     """Mock fixture for database AsyncSession."""
     session = AsyncMock()
+    session.add = MagicMock()
     # Mocking executing statements returning scalars
     mock_result = MagicMock()
     mock_result.scalars.return_value.all.return_value = []

@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 from contextlib import asynccontextmanager
 from shared.proto import service_pb2, service_pb2_grpc
-from shared.config import AUTH_SERVICE_ADDR, CHATAI_SERVICE_ADDR, GATEWAY_PORT
+from shared.config import AUTH_SERVICE_ADDR, GATEWAY_PORT
 from services.api_gateway.middlewares.rate_limiter import SlidingWindowRateLimiter
 from services.api_gateway.routers.auth_routers import registration, verification, login, me, refresh, logout
 from services.api_gateway.routers.connectors import connector_route
@@ -23,7 +23,6 @@ from services.api_gateway.routers.chat_routers import telegram_webhook_router, c
 async def lifespan(app: FastAPI):
     # Startup: Setup gRPC Channels
     auth_channel = grpc.aio.insecure_channel(AUTH_SERVICE_ADDR)
-    chat_channel = grpc.aio.insecure_channel(CHATAI_SERVICE_ADDR)
     
     # Expose stubs to the app state
     app.state.auth_stub = service_pb2_grpc.AuthServiceStub(auth_channel)

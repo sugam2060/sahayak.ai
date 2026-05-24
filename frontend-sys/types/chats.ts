@@ -4,6 +4,7 @@ export interface MessageDetail {
   sender_id: number;
   sender_name: string;
   text: string;
+  intent?: 'buy' | 'no_intent';
   created_at: string;
 }
 
@@ -21,6 +22,7 @@ export interface Conversation {
   chat_id: number;
   user: ConversationUser;
   messages: MessageDetail[];
+  ai_assigned: boolean;
   created_at: string;
   updated_at: string;
 }

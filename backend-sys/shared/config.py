@@ -54,4 +54,8 @@ KAFKA_BOOTSTRAP_SERVERS = config("KAFKA_BOOTSTRAP_SERVERS", default="localhost:9
 MONGODB_URL = config("MONGODB_URL", default="mongodb+srv://sugam2060:XNCBD8sEsMceta6m@cluster0.fxcagu2.mongodb.net/")
 MONGODB_DB_NAME = config("MONGODB_DB_NAME", default="sahayak_ai")
 
+# Groq Configuration
+GROQ_API_KEY = config("GROQ_API_KEY", default="")
+
+
 

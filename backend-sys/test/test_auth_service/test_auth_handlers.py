@@ -21,6 +21,7 @@ from services.auth_service.logout import handle_logout
 def mock_db_session():
     """Fixture for creating a mock DB AsyncSession."""
     session = AsyncMock()
+    session.add = MagicMock()
     mock_result = MagicMock()
     mock_result.scalars.return_value.all.return_value = []
     mock_result.scalars.return_value.first.return_value = None
