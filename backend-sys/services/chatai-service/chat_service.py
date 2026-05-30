@@ -3,15 +3,7 @@ import httpx
 from datetime import datetime, timezone
 from shared.kafka_producer import KafkaProducerPool
 from shared.database.mongodb import MongoDBManager
-from shared.database.schema.chat_message_mongo import MessageDetail, ConversationUser, ConversationMongo, MessageIntent
-
-def detect_message_intent(text: str) -> MessageIntent:
-    if not text:
-        return MessageIntent.NO_INTENT
-    keywords = ["buy", "price", "order", "cost", "purchase", "how much", "shop", "pay"]
-    if any(keyword in text.lower() for keyword in keywords):
-        return MessageIntent.BUY
-    return MessageIntent.NO_INTENT
+from shared.database.schema.chat_message_mongo import MessageDetail, MessageIntent
 
 logger = logging.getLogger("chatai_service.chat_service")
 
@@ -44,7 +36,8 @@ async def route_outbound_reply(
     platform: str,
     chat_id: int,
     sender_id: int,
-    text: str
+    text: str,
+    image_url: str = None
 ):
     """
     Produce the outbound reply message event and send it to the kafka chat_service topic.
@@ -57,7 +50,8 @@ async def route_outbound_reply(
         "direction": "outbound",
         "chat_id": chat_id,
         "sender_id": sender_id,
-        "text": text
+        "text": text,
+        "image_url": image_url
     }
     
     logger.info(f"Producing outbound reply event for sender_id: {sender_id} to chat_service topic.")
@@ -114,11 +108,6 @@ async def handle_chat_event(event: dict):
         if conv and "messages" in conv:
             next_message_id = len(conv["messages"]) + 1
             
-        ai_assigned = conv.get("ai_assigned", False) if conv else False
-        
-        # Detect message intent
-        intent_val = detect_message_intent(text)
-        
         # Create validated Inbound MessageDetail
         inbound_msg = MessageDetail(
             message_id=next_message_id,
@@ -126,7 +115,7 @@ async def handle_chat_event(event: dict):
             sender_id=sender_id,
             sender_name=sender_name,
             text=text,
-            intent=intent_val,
+            intent=MessageIntent.NO_INTENT,
             created_at=datetime.now(timezone.utc)
         )
         
@@ -177,97 +166,11 @@ async def handle_chat_event(event: dict):
         except Exception as e:
             logger.error(f"Failed to publish inbound message to chat_websocket: {e}")
             
-        # If AI is assigned, perform automatic response
-        if ai_assigned:
-            from .ai.graph import invoke_customer_handling_graph
-            from .ai.memory import compress_conversation_history
-
-            try:
-                ai_reply_text = await invoke_customer_handling_graph(
-                    org_id=str(org_id),
-                    platform=platform,
-                    sender_id=sender_id,
-                    bot_name=bot_name,
-                    chat_id=chat_id,
-                    user_message=text
-                )
-            except Exception as e:
-                logger.error(f"Error invoking LangGraph workflow: {e}", exc_info=True)
-                ai_reply_text = "I'm sorry, I encountered an error. A human agent will assist you shortly."
-
-            # Fetch updated conversation to get correct message_id
-            updated_conv = await db.conversations.find_one({
-                "platform": platform,
-                "user.sender_id": sender_id
-            })
-            next_outbound_id = len(updated_conv["messages"]) + 1 if updated_conv and "messages" in updated_conv else next_message_id + 1
-
-            # Create validated Outbound MessageDetail
-            outbound_msg = MessageDetail(
-                message_id=next_outbound_id,
-                direction="outbound",
-                sender_id=0,  # Bot/System sender ID
-                sender_name=bot_name,
-                text=ai_reply_text,
-                intent=MessageIntent.NO_INTENT,
-                created_at=datetime.now(timezone.utc)
-            )
-            
-            # Save outbound message to MongoDB
-            await db.conversations.update_one(
-                {
-                    "platform": platform,
-                    "user.sender_id": sender_id
-                },
-                {
-                    "$set": {
-                        "updated_at": datetime.now(timezone.utc)
-                    },
-                    "$push": {
-                        "messages": outbound_msg.model_dump()
-                    }
-                }
-            )
-            logger.debug(f"Saved AI auto-reply outbound message {next_outbound_id} to MongoDB.")
-            
-            # Publish outbound message to Kafka chat_websocket topic
-            try:
-                ws_event_outbound = {
-                    "org_id": str(org_id),
-                    "platform": platform,
-                    "sender_id": sender_id,
-                    "type": "new_message",
-                    "message": outbound_msg.model_dump(mode="json")
-                }
-                await KafkaProducerPool.send_message("chat_websocket", ws_event_outbound)
-                logger.debug(f"Published AI auto-reply outbound event to chat_websocket for org: {org_id}")
-            except Exception as e:
-                logger.error(f"Failed to publish AI auto-reply to chat_websocket: {e}")
-                
-            # Send message back to Telegram user via Bot API
-            async with httpx.AsyncClient() as client:
-                telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                tg_payload = {
-                    "chat_id": chat_id,
-                    "text": ai_reply_text
-                }
-                logger.debug(f"Sending AI auto-reply to Telegram chat {chat_id} via Bot API...")
-                tg_response = await client.post(telegram_url, json=tg_payload, timeout=10.0)
-                if tg_response.status_code == 200:
-                    logger.debug("Successfully sent AI auto-reply to Telegram user.")
-                else:
-                    logger.error(f"Failed to send AI auto-reply to Telegram: {tg_response.status_code} - {tg_response.text}")
-            
-            # 8:6 memory compression check
-            try:
-                await compress_conversation_history(sender_id, platform)
-            except Exception as e:
-                logger.error(f"Failed to execute 8:6 memory compression: {e}", exc_info=True)
-                    
     elif direction == "outbound":
         chat_id = event.get("chat_id")
         sender_id = event.get("sender_id")
         text = event.get("text", "")
+        image_url = event.get("image_url")
         
         if not chat_id or not sender_id:
             logger.warning(f"Skipping outbound event missing chat_id or sender_id: {event}")
@@ -290,6 +193,7 @@ async def handle_chat_event(event: dict):
             sender_id=0,  # Bot/System sender ID
             sender_name=bot_name,
             text=text,
+            image_url=image_url,
             intent=MessageIntent.NO_INTENT,
             created_at=datetime.now(timezone.utc)
         )
@@ -325,15 +229,29 @@ async def handle_chat_event(event: dict):
             logger.error(f"Failed to publish outbound message to chat_websocket: {e}")
         
         # Send message back to Telegram user via Bot API
-        async with httpx.AsyncClient() as client:
-            telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            tg_payload = {
-                "chat_id": chat_id,
-                "text": text
-            }
-            logger.debug(f"Sending manual reply to Telegram chat {chat_id} via Bot API...")
-            tg_response = await client.post(telegram_url, json=tg_payload, timeout=10.0)
-            if tg_response.status_code == 200:
-                logger.debug("Successfully sent manual reply to Telegram user.")
-            else:
-                logger.error(f"Failed to send manual reply to Telegram: {tg_response.status_code} - {tg_response.text}")
+        from shared.config import TELEGRAM_API_BASE_URL
+        try:
+            async with httpx.AsyncClient() as client:
+                if image_url:
+                    telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendPhoto"
+                    tg_payload = {
+                        "chat_id": chat_id,
+                        "photo": image_url,
+                    }
+                    if text and text != "Shared a product card":
+                        tg_payload["caption"] = text
+                else:
+                    telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendMessage"
+                    tg_payload = {
+                        "chat_id": chat_id,
+                        "text": text
+                    }
+                logger.info(f"Sending manual reply to Telegram chat {chat_id} via Bot API at {telegram_url}...")
+                tg_response = await client.post(telegram_url, json=tg_payload, timeout=5.0)
+                if tg_response.status_code == 200:
+                    logger.debug("Successfully sent manual reply to Telegram user.")
+                else:
+                    logger.error(f"Failed to send manual reply to Telegram: {tg_response.status_code} - {tg_response.text}")
+        except Exception as e:
+            logger.error(f"Network error sending message to Telegram user: {str(e)}")
+

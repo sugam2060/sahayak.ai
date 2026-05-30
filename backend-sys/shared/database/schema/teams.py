@@ -1,11 +1,19 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, ForeignKey, text, Text
+from sqlalchemy import String, DateTime, ForeignKey, text, Text, Index
 from shared.database.schema.base import Base
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from shared.database.schema.organizations import Organization
+    from shared.database.schema.users import User
 
 class Team(Base):
     __tablename__ = "teams"
+
+    __table_args__ = (
+        Index("idx_teams_organization_id", "organization_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
@@ -20,6 +28,11 @@ class Team(Base):
 
 class TeamMember(Base):
     __tablename__ = "team_members"
+
+    __table_args__ = (
+        Index("idx_team_members_team_user", "team_id", "user_id"),
+        Index("idx_team_members_user_id", "user_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

@@ -4,6 +4,7 @@ export interface MessageDetail {
   sender_id: number;
   sender_name: string;
   text: string;
+  image_url?: string;
   intent?: 'buy' | 'no_intent';
   created_at: string;
 }

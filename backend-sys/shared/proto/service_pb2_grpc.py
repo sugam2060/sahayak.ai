@@ -310,3 +310,520 @@ class AuthService(object):
             timeout,
             metadata,
             _registered_method=True)
+
+
+class ConfigureAIServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.ConfigureAI = channel.unary_unary(
+                '/microservices.ConfigureAIService/ConfigureAI',
+                request_serializer=shared_dot_proto_dot_service__pb2.ConfigureAIRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.ConfigureAIResponse.FromString,
+                _registered_method=True)
+
+
+class ConfigureAIServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def ConfigureAI(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ConfigureAIServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'ConfigureAI': grpc.unary_unary_rpc_method_handler(
+                    servicer.ConfigureAI,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.ConfigureAIRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.ConfigureAIResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'microservices.ConfigureAIService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('microservices.ConfigureAIService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ConfigureAIService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def ConfigureAI(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ConfigureAIService/ConfigureAI',
+            shared_dot_proto_dot_service__pb2.ConfigureAIRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.ConfigureAIResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class ProductServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.CreateProduct = channel.unary_unary(
+                '/microservices.ProductService/CreateProduct',
+                request_serializer=shared_dot_proto_dot_service__pb2.CreateProductRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.CreateProductResponse.FromString,
+                _registered_method=True)
+        self.GetProducts = channel.unary_unary(
+                '/microservices.ProductService/GetProducts',
+                request_serializer=shared_dot_proto_dot_service__pb2.GetProductsRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.GetProductsResponse.FromString,
+                _registered_method=True)
+        self.GetProductDetail = channel.unary_unary(
+                '/microservices.ProductService/GetProductDetail',
+                request_serializer=shared_dot_proto_dot_service__pb2.GetProductDetailRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.GetProductDetailResponse.FromString,
+                _registered_method=True)
+        self.UpdateProduct = channel.unary_unary(
+                '/microservices.ProductService/UpdateProduct',
+                request_serializer=shared_dot_proto_dot_service__pb2.UpdateProductRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.UpdateProductResponse.FromString,
+                _registered_method=True)
+        self.DeleteProduct = channel.unary_unary(
+                '/microservices.ProductService/DeleteProduct',
+                request_serializer=shared_dot_proto_dot_service__pb2.DeleteProductRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.DeleteProductResponse.FromString,
+                _registered_method=True)
+
+
+class ProductServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def CreateProduct(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetProducts(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetProductDetail(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateProduct(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteProduct(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ProductServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'CreateProduct': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateProduct,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.CreateProductRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.CreateProductResponse.SerializeToString,
+            ),
+            'GetProducts': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetProducts,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.GetProductsRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.GetProductsResponse.SerializeToString,
+            ),
+            'GetProductDetail': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetProductDetail,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.GetProductDetailRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.GetProductDetailResponse.SerializeToString,
+            ),
+            'UpdateProduct': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateProduct,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.UpdateProductRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.UpdateProductResponse.SerializeToString,
+            ),
+            'DeleteProduct': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteProduct,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.DeleteProductRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.DeleteProductResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'microservices.ProductService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('microservices.ProductService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ProductService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def CreateProduct(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ProductService/CreateProduct',
+            shared_dot_proto_dot_service__pb2.CreateProductRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.CreateProductResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetProducts(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ProductService/GetProducts',
+            shared_dot_proto_dot_service__pb2.GetProductsRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.GetProductsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetProductDetail(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ProductService/GetProductDetail',
+            shared_dot_proto_dot_service__pb2.GetProductDetailRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.GetProductDetailResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateProduct(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ProductService/UpdateProduct',
+            shared_dot_proto_dot_service__pb2.UpdateProductRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.UpdateProductResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteProduct(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.ProductService/DeleteProduct',
+            shared_dot_proto_dot_service__pb2.DeleteProductRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.DeleteProductResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class OrderServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.CreateOrder = channel.unary_unary(
+                '/microservices.OrderService/CreateOrder',
+                request_serializer=shared_dot_proto_dot_service__pb2.CreateOrderRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.CreateOrderResponse.FromString,
+                _registered_method=True)
+        self.GetOrderDetails = channel.unary_unary(
+                '/microservices.OrderService/GetOrderDetails',
+                request_serializer=shared_dot_proto_dot_service__pb2.GetOrderDetailsRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.GetOrderDetailsResponse.FromString,
+                _registered_method=True)
+        self.ListOrders = channel.unary_unary(
+                '/microservices.OrderService/ListOrders',
+                request_serializer=shared_dot_proto_dot_service__pb2.ListOrdersRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.ListOrdersResponse.FromString,
+                _registered_method=True)
+        self.UpdateOrderStatus = channel.unary_unary(
+                '/microservices.OrderService/UpdateOrderStatus',
+                request_serializer=shared_dot_proto_dot_service__pb2.UpdateOrderStatusRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.UpdateOrderStatusResponse.FromString,
+                _registered_method=True)
+
+
+class OrderServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def CreateOrder(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetOrderDetails(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListOrders(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateOrderStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_OrderServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'CreateOrder': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateOrder,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.CreateOrderRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.CreateOrderResponse.SerializeToString,
+            ),
+            'GetOrderDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOrderDetails,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.GetOrderDetailsRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.GetOrderDetailsResponse.SerializeToString,
+            ),
+            'ListOrders': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListOrders,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.ListOrdersRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.ListOrdersResponse.SerializeToString,
+            ),
+            'UpdateOrderStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateOrderStatus,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.UpdateOrderStatusRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.UpdateOrderStatusResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'microservices.OrderService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('microservices.OrderService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class OrderService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def CreateOrder(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.OrderService/CreateOrder',
+            shared_dot_proto_dot_service__pb2.CreateOrderRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.CreateOrderResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetOrderDetails(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.OrderService/GetOrderDetails',
+            shared_dot_proto_dot_service__pb2.GetOrderDetailsRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.GetOrderDetailsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListOrders(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.OrderService/ListOrders',
+            shared_dot_proto_dot_service__pb2.ListOrdersRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.ListOrdersResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateOrderStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.OrderService/UpdateOrderStatus',
+            shared_dot_proto_dot_service__pb2.UpdateOrderStatusRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.UpdateOrderStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

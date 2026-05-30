@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Enum, DateTime, ForeignKey, text, JSON
+from sqlalchemy import String, Enum, DateTime, ForeignKey, text, JSON, Index
 from shared.database.schema.base import Base
 
 class AuditEventType(enum.Enum):
@@ -15,6 +15,12 @@ class AuditEventType(enum.Enum):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+
+    __table_args__ = (
+        Index("idx_audit_logs_organization_id", "organization_id"),
+        Index("idx_audit_logs_user_id", "user_id"),
+        Index("idx_audit_logs_org_created", "organization_id", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

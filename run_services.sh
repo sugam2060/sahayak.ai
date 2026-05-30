@@ -26,7 +26,7 @@ echo "--> Starting backend api_gateway (FastAPI)..."
 
 # 4. Run Kafka worker for mail_service
 echo "--> Starting Kafka worker for mail_service..."
-(cd backend-sys && uv run -m services.workers.kafka_worker) &
+(cd backend-sys && uv run -m services.workers.main) &
 
 # 5. Run backend chatai-service (Kafka-based Agent)
 echo "--> Starting backend chatai-service (Kafka)..."

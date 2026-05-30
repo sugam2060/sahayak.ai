@@ -41,7 +41,16 @@ const InboxLayout = () => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const wsProto = apiBaseUrl.startsWith('https:') ? 'wss:' : 'ws:';
     const wsHost = apiBaseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const wsUrl = `${wsProto}//${wsHost}/api/chats/ws/${user.organization_id}`;
+
+    // Pass user_id, platform, and sender_id to restrict connections per chat
+    const queryParams = new URLSearchParams();
+    if (user?.user_id) queryParams.append('user_id', user.user_id);
+    if (selectedChat) {
+      queryParams.append('platform', selectedChat.platform);
+      queryParams.append('sender_id', selectedChat.senderId.toString());
+    }
+
+    const wsUrl = `${wsProto}//${wsHost}/api/chats/ws/${user.organization_id}?${queryParams.toString()}`;
     
     console.log(`[WebSocket] Connecting to: ${wsUrl}`);
     let isClosed = false;
@@ -159,7 +168,7 @@ const InboxLayout = () => {
       isClosed = true;
       socket.close();
     };
-  }, [user?.organization_id, chats.length, queryClient]);
+  }, [user?.organization_id, user?.user_id, chats.length, queryClient, selectedChat]);
 
   return (
     <div className="flex h-[calc(100vh-80px)] md:h-[calc(100vh-130px)] w-full overflow-hidden bg-[#EBF1FB] rounded-2xl border border-indigo-100/30 shadow-md relative">

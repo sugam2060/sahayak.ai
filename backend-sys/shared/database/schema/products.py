@@ -1,12 +1,22 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, text, Text, Integer
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, text, Text, Integer, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from shared.database.schema.base import Base
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from shared.database.schema.organizations import Organization
+    from shared.database.schema.orders import OrderItem
 
 class Product(Base):
     __tablename__ = "products"
+
+    __table_args__ = (
+        Index("idx_products_organization_id", "organization_id"),
+        Index("idx_products_org_sku", "organization_id", "sku"),
+        Index("idx_products_org_name", "organization_id", "name"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))

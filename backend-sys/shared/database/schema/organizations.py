@@ -4,6 +4,15 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Boolean, Enum, DateTime, text, ForeignKey
 from shared.database.schema.base import Base
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from shared.database.schema.users import User
+    from shared.database.schema.organization_config_ai import OrganizationConfigAI
+    from shared.database.schema.refresh_tokens import RefreshToken
+    from shared.database.schema.teams import Team
+    from shared.database.schema.products import Product
+    from shared.database.schema.orders import Order
+    from shared.database.schema.platform_connectors import PlatformConnector
 
 class PlanType(enum.Enum):
     FREE = "free"

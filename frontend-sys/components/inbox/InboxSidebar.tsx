@@ -130,7 +130,9 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
 
         {!isLoading && !error && filteredChats.map((convo) => {
           const lastMsg = convo.messages[convo.messages.length - 1];
-          const lastText = lastMsg ? lastMsg.text : 'No messages yet';
+          const lastText = lastMsg 
+            ? (lastMsg.image_url || lastMsg.text === 'Shared a product card' ? '📷 Image shared' : lastMsg.text)
+            : 'No messages yet';
           const lastTime = convo.updated_at ? formatTime(convo.updated_at) : '';
           const initials = convo.user.sender_name
             .split(' ')

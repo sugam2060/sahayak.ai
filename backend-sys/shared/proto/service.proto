@@ -95,3 +95,225 @@ message VerifyEmailResponse {
 }
 
 
+service ConfigureAIService {
+  rpc ConfigureAI (ConfigureAIRequest) returns (ConfigureAIResponse);
+}
+
+message ConfigureAIRequest {
+  string organization_id = 1;
+  bool ai_enabled = 2;
+  bool auto_order_enabled = 3;
+  string system_prompt = 4;
+  string knowledge_base = 5;
+}
+
+message ConfigureAIResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+service ProductService {
+  rpc CreateProduct (CreateProductRequest) returns (CreateProductResponse);
+  rpc GetProducts (GetProductsRequest) returns (GetProductsResponse);
+  rpc GetProductDetail (GetProductDetailRequest) returns (GetProductDetailResponse);
+  rpc UpdateProduct (UpdateProductRequest) returns (UpdateProductResponse);
+  rpc DeleteProduct (DeleteProductRequest) returns (DeleteProductResponse);
+}
+
+service OrderService {
+  rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrderDetails (GetOrderDetailsRequest) returns (GetOrderDetailsResponse);
+  rpc ListOrders (ListOrdersRequest) returns (ListOrdersResponse);
+  rpc UpdateOrderStatus (UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse);
+}
+
+message ProductInfo {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  int32 price = 5;
+  string currency = 6;
+  int32 stock = 7;
+  string sku = 8;
+  string image = 9;
+  bool is_active = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message CreateProductRequest {
+  string organization_id = 1;
+  string organization_name = 2;
+  string name = 3;
+  string description = 4;
+  int32 price = 5;
+  string currency = 6;
+  int32 stock = 7;
+  string sku = 8;
+  bool is_active = 9;
+  bytes image_file_bytes = 10;
+  string image_file_name = 11;
+  string image_file_content_type = 12;
+}
+
+message CreateProductResponse {
+  bool success = 1;
+  ProductInfo product = 2;
+  string message = 3;
+}
+
+message GetProductsRequest {
+  string organization_id = 1;
+  int32 limit = 2;
+  string cursor = 3;
+  string search = 4;
+  string sku = 5;
+  bool has_is_active = 6;
+  bool is_active = 7;
+  string stock_status = 8;
+}
+
+message GetProductsResponse {
+  bool success = 1;
+  repeated ProductInfo products = 2;
+  string next_cursor = 3;
+  bool has_next = 4;
+}
+
+message GetProductDetailRequest {
+  string organization_id = 1;
+  string product_id = 2;
+}
+
+message GetProductDetailResponse {
+  bool success = 1;
+  ProductInfo product = 2;
+}
+
+message UpdateProductRequest {
+  string organization_id = 1;
+  string organization_name = 2;
+  string product_id = 3;
+  bool has_name = 4;
+  string name = 5;
+  bool has_description = 6;
+  string description = 7;
+  bool has_price = 8;
+  int32 price = 9;
+  bool has_currency = 10;
+  string currency = 11;
+  bool has_stock = 12;
+  int32 stock = 13;
+  bool has_sku = 14;
+  string sku = 15;
+  bool has_is_active = 16;
+  bool is_active = 17;
+  bool clear_image = 18;
+  bytes image_file_bytes = 19;
+  string image_file_name = 20;
+  string image_file_content_type = 21;
+}
+
+message UpdateProductResponse {
+  bool success = 1;
+  ProductInfo product = 2;
+  string message = 3;
+}
+
+message DeleteProductRequest {
+  string organization_id = 1;
+  string product_id = 2;
+}
+
+message DeleteProductResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message OrderItemInfo {
+  string id = 1;
+  string product_id = 2;
+  int32 quantity = 3;
+  int32 unit_price = 4;
+  string snapshot_json = 5;
+}
+
+message OrderInfo {
+  string id = 1;
+  string organization_id = 2;
+  string platform = 3;
+  string external_customer_id = 4;
+  string customer_phone = 5;
+  string delivery_address = 6;
+  string status = 7;
+  int32 total_amount = 8;
+  string currency = 9;
+  string assigned_agent_id = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  repeated OrderItemInfo items = 13;
+  int32 tax_amount = 14;
+  int32 delivery_charge = 15;
+}
+
+message OrderItemCreateInput {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message CreateOrderRequest {
+  string organization_id = 1;
+  string agent_id = 2;
+  string platform = 3;
+  string external_customer_id = 4;
+  string customer_phone = 5;
+  string delivery_address = 6;
+  string currency = 7;
+  repeated OrderItemCreateInput items = 8;
+  int32 tax_percentage = 9;
+  int32 delivery_charge = 10;
+}
+
+message CreateOrderResponse {
+  bool success = 1;
+  string order_id = 2;
+  int32 total_amount = 3;
+  string status = 4;
+  string message = 5;
+  string tracking_token = 6;
+}
+
+
+message GetOrderDetailsRequest {
+  string organization_id = 1;
+  string order_id = 2;
+}
+
+message GetOrderDetailsResponse {
+  bool success = 1;
+  OrderInfo order = 2;
+}
+
+message ListOrdersRequest {
+  string organization_id = 1;
+}
+
+message ListOrdersResponse {
+  bool success = 1;
+  repeated OrderInfo orders = 2;
+}
+
+message UpdateOrderStatusRequest {
+  string organization_id = 1;
+  string order_id = 2;
+  string status = 3;
+}
+
+message UpdateOrderStatusResponse {
+  bool success = 1;
+  string order_id = 2;
+  string status = 3;
+  string message = 4;
+}
+

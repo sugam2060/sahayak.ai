@@ -4,6 +4,12 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Boolean, Enum, DateTime, ForeignKey, text, Index
 from shared.database.schema.base import Base
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from shared.database.schema.organizations import Organization
+    from shared.database.schema.refresh_tokens import RefreshToken
+    from shared.database.schema.teams import TeamMember
+    from shared.database.schema.orders import Order
 
 class UserRole(enum.Enum):
     OWNER = "OWNER"
@@ -20,6 +26,7 @@ class User(Base):
             unique=True,
             postgresql_where=text("role = 'OWNER'")
         ),
+        Index("ix_users_organization_id", "organization_id"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))

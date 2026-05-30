@@ -3,11 +3,20 @@ import logging
 import sys
 from shared.database.mongodb import init_mongodb_db, MongoDBManager
 
+# Ensure stdout/stderr are line-buffered to avoid console output buffering when run in background
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
 )
+
+# Explicitly ensure chatai_service loggers are set to INFO level
+logging.getLogger("chatai_service").setLevel(logging.INFO)
+
 
 async def serve():
     # Initialize MongoDB unique index on startup
@@ -29,9 +38,11 @@ async def serve():
         pass
     finally:
         # Gracefully shutdown consumer and close MongoDB client
+        print("Stopping ChatAI Service...")
         await chat_worker.shutdown()
         await chat_worker_task
         await MongoDBManager.close()
 
 if __name__ == "__main__":
     asyncio.run(serve())
+

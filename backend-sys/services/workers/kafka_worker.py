@@ -6,7 +6,6 @@ import sys
 from aiokafka import AIOKafkaConsumer
 from shared.config import KAFKA_BOOTSTRAP_SERVERS
 from services.workers.mail_service import send_verification_email
-import importlib
 
 # Set up logging
 logging.basicConfig(
@@ -95,9 +94,3 @@ class KafkaMailWorker:
             logger.info("Kafka consumer connection closed.")
 
 
-if __name__ == "__main__":
-    worker = KafkaMailWorker()
-    try:
-        asyncio.run(worker.start())
-    except KeyboardInterrupt:
-        logger.info("Worker terminated by keyboard interrupt.")

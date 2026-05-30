@@ -16,6 +16,8 @@ DATABASE_URL = config("DATABASE_URL", default="postgresql+asyncpg://user:pass@lo
 # gRPC Service Addresses
 AUTH_SERVICE_ADDR = config("AUTH_SERVICE_ADDR", default="localhost:50051")
 CHATAI_SERVICE_ADDR = config("CHATAI_SERVICE_ADDR", default="localhost:50052")
+WORKERS_SERVICE_ADDR = config("WORKERS_SERVICE_ADDR", default="localhost:50053")
+
 
 # Gateway
 GATEWAY_PORT = config("GATEWAY_PORT", cast=int, default=8000)
@@ -56,6 +58,16 @@ MONGODB_DB_NAME = config("MONGODB_DB_NAME", default="sahayak_ai")
 
 # Groq Configuration
 GROQ_API_KEY = config("GROQ_API_KEY", default="")
+
+# Pinecone Configuration
+PINECONE_API_KEY = config("PINECONE_API_KEY", default="")
+PINECONE_INDEX_HOST = config("PINECONE_INDEX_HOST", default="")
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="dqalfkroo")
+CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="132545484359525")
+CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="HUcNQXY96H_al0vqhqArwo_Lh7s")
+
 
 
 
