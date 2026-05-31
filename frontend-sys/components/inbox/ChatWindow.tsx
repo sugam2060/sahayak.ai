@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, MoreHorizontal, Paperclip, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu, Ticket } from 'lucide-react';
+import { Plus, MoreHorizontal, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu, Ticket } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaTwitter } from 'react-icons/fa';
 import { useChatHistory, useSendReply, useToggleAI } from '@/services/api/chats';
 import { ContextPanel } from './ContextPanel';

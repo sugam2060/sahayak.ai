@@ -22,8 +22,9 @@ export function TicketDetailView({ ticket, isLoading }: TicketDetailViewProps) {
         status: newStatus,
       });
       toast.success(`Ticket status updated to ${newStatus}.`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update ticket status.');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to update ticket status.';
+      toast.error(errMsg);
     }
   };
 
@@ -35,8 +36,9 @@ export function TicketDetailView({ ticket, isLoading }: TicketDetailViewProps) {
         priority: newPriority,
       });
       toast.success(`Ticket priority updated to ${newPriority}.`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update ticket priority.');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to update ticket priority.';
+      toast.error(errMsg);
     }
   };
 

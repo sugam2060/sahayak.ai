@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import { useTickets, useTicket, TicketDetail } from '@/services/api/tickets';
 import { TicketListSidebar } from '@/components/ticket/TicketListSidebar';
 import { TicketDetailView } from '@/components/ticket/TicketDetailView';
@@ -19,7 +19,7 @@ function TicketManagementContent() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
-  const handleSelectId = (id: string | null) => {
+  const handleSelectId = useCallback((id: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (id) {
       params.set('id', id);
@@ -27,7 +27,7 @@ function TicketManagementContent() {
       params.delete('id');
     }
     router.push(`${pathname}?${params.toString()}`);
-  };
+  }, [searchParams, pathname, router]);
 
   const debouncedSearchFn = useMemo(
     () =>
@@ -40,6 +40,17 @@ function TicketManagementContent() {
   const handleSearchChange = (val: string) => {
     setSearchInput(val);
     debouncedSearchFn(val);
+    handleSelectId(null);
+  };
+
+  const handleStatusChange = (status: string) => {
+    setStatusFilter(status);
+    handleSelectId(null);
+  };
+
+  const handlePriorityChange = (priority: string) => {
+    setPriorityFilter(priority);
+    handleSelectId(null);
   };
 
   useEffect(() => {
@@ -47,10 +58,6 @@ function TicketManagementContent() {
       debouncedSearchFn.cancel();
     };
   }, [debouncedSearchFn]);
-
-  useEffect(() => {
-    handleSelectId(null);
-  }, [debouncedSearch, statusFilter, priorityFilter]);
 
   const queryParams = useMemo(() => {
     return {
@@ -62,13 +69,13 @@ function TicketManagementContent() {
   }, [debouncedSearch, statusFilter, priorityFilter]);
 
   const { data, isLoading } = useTickets(queryParams);
-  const tickets: TicketDetail[] = data?.tickets || [];
+  const tickets: TicketDetail[] = useMemo(() => data?.tickets || [], [data?.tickets]);
 
   useEffect(() => {
     if (!selectedId && tickets.length > 0) {
       handleSelectId(tickets[0].id);
     }
-  }, [tickets, selectedId]);
+  }, [tickets, selectedId, handleSelectId]);
 
   const { data: selectedTicket, isLoading: isDetailLoading } = useTicket(selectedId || '');
 
@@ -81,9 +88,9 @@ function TicketManagementContent() {
         searchTerm={searchInput}
         onSearchChange={handleSearchChange}
         statusFilter={statusFilter}
-        onStatusChange={setStatusFilter}
+        onStatusChange={handleStatusChange}
         priorityFilter={priorityFilter}
-        onPriorityChange={setPriorityFilter}
+        onPriorityChange={handlePriorityChange}
         isLoading={isLoading}
       />
 

@@ -87,8 +87,9 @@ export const CreateTicketModal = ({ open, onOpenChange, selectedChat, customerNa
       
       onOpenChange(false);
       reset();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create ticket.');
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : 'Failed to create ticket.';
+      toast.error(errMessage);
     }
   };
 
