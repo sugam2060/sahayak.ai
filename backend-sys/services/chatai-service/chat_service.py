@@ -84,7 +84,8 @@ async def handle_chat_event(event: dict):
             
         chat = message.get("chat", {})
         sender = message.get("from", {})
-        text = message.get("text", "")
+        text = message.get("text") or message.get("caption") or ""
+        image_url = message.get("image_url")
         
         chat_id = chat.get("id")
         sender_id = sender.get("id")
@@ -115,6 +116,7 @@ async def handle_chat_event(event: dict):
             sender_id=sender_id,
             sender_name=sender_name,
             text=text,
+            image_url=image_url,
             intent=MessageIntent.NO_INTENT,
             created_at=datetime.now(timezone.utc)
         )

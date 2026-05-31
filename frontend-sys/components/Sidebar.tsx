@@ -5,6 +5,7 @@ import {
   MessageSquare, 
   Package,  
   HelpCircle,
+  Ticket,
 } from 'lucide-react';
 import { 
   RiPlugLine, 
@@ -31,6 +32,7 @@ export const Sidebar = () => {
     { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
     { name: 'Inbox', icon: MessageSquare, href: '/inbox' },
     { name: 'Orders', icon: Package, href: '/orders' },
+    { name: 'Tickets', icon: Ticket, href: '/ticket' },
     { name: 'Products', icon: RiBox3Line, href: '/products' },
     { name: 'Connectors', icon: RiPlugLine, href: '/connectors' },
     { name: 'AI Configuration', icon: RiRobot2Line, href: '/ai-config' },

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from shared.database.schema.products import Product
     from shared.database.schema.orders import Order
     from shared.database.schema.platform_connectors import PlatformConnector
+    from shared.database.schema.tickets import Ticket
 
 class PlanType(enum.Enum):
     FREE = "free"
@@ -39,6 +40,7 @@ class Organization(Base):
     teams: Mapped[list["Team"]] = relationship("Team", back_populates="organization", cascade="all, delete-orphan")
     products: Mapped[list["Product"]] = relationship("Product", back_populates="organization", cascade="all, delete-orphan")
     orders: Mapped[list["Order"]] = relationship("Order", back_populates="organization", cascade="all, delete-orphan")
+    tickets: Mapped[list["Ticket"]] = relationship("Ticket", back_populates="organization", cascade="all, delete-orphan")
     # Connectors relationship: holds multiple connectors for different platforms.
     # An organization can have multiple platform connectors, but is limited to at most one per platform type
     # by the unique constraint `uq_org_platform_connector` in the `platform_connectors` table.

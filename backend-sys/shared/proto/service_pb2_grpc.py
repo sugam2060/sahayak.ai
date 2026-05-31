@@ -827,3 +827,204 @@ class OrderService(object):
             timeout,
             metadata,
             _registered_method=True)
+
+
+class TicketServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.CreateTicket = channel.unary_unary(
+                '/microservices.TicketService/CreateTicket',
+                request_serializer=shared_dot_proto_dot_service__pb2.CreateTicketRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.CreateTicketResponse.FromString,
+                _registered_method=True)
+        self.ListTickets = channel.unary_unary(
+                '/microservices.TicketService/ListTickets',
+                request_serializer=shared_dot_proto_dot_service__pb2.ListTicketsRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.ListTicketsResponse.FromString,
+                _registered_method=True)
+        self.GetTicketDetail = channel.unary_unary(
+                '/microservices.TicketService/GetTicketDetail',
+                request_serializer=shared_dot_proto_dot_service__pb2.GetTicketDetailRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.GetTicketDetailResponse.FromString,
+                _registered_method=True)
+        self.UpdateTicket = channel.unary_unary(
+                '/microservices.TicketService/UpdateTicket',
+                request_serializer=shared_dot_proto_dot_service__pb2.UpdateTicketRequest.SerializeToString,
+                response_deserializer=shared_dot_proto_dot_service__pb2.UpdateTicketResponse.FromString,
+                _registered_method=True)
+
+
+class TicketServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def CreateTicket(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListTickets(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetTicketDetail(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateTicket(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_TicketServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'CreateTicket': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateTicket,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.CreateTicketRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.CreateTicketResponse.SerializeToString,
+            ),
+            'ListTickets': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListTickets,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.ListTicketsRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.ListTicketsResponse.SerializeToString,
+            ),
+            'GetTicketDetail': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetTicketDetail,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.GetTicketDetailRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.GetTicketDetailResponse.SerializeToString,
+            ),
+            'UpdateTicket': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateTicket,
+                    request_deserializer=shared_dot_proto_dot_service__pb2.UpdateTicketRequest.FromString,
+                    response_serializer=shared_dot_proto_dot_service__pb2.UpdateTicketResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'microservices.TicketService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('microservices.TicketService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class TicketService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def CreateTicket(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.TicketService/CreateTicket',
+            shared_dot_proto_dot_service__pb2.CreateTicketRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.CreateTicketResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListTickets(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.TicketService/ListTickets',
+            shared_dot_proto_dot_service__pb2.ListTicketsRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.ListTicketsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetTicketDetail(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.TicketService/GetTicketDetail',
+            shared_dot_proto_dot_service__pb2.GetTicketDetailRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.GetTicketDetailResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateTicket(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/microservices.TicketService/UpdateTicket',
+            shared_dot_proto_dot_service__pb2.UpdateTicketRequest.SerializeToString,
+            shared_dot_proto_dot_service__pb2.UpdateTicketResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

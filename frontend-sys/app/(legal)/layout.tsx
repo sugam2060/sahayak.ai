@@ -24,7 +24,7 @@ export default function LegalLayout({
 
       <div className="mt-8 text-center">
         <p className="text-slate-400 text-xs font-medium uppercase tracking-[0.2em]">
-          © {new Date().getFullYear()} Sahayak AI • Built for Modern Business
+          © 2026 Sahayak AI • Built for Modern Business
         </p>
       </div>
     </div>

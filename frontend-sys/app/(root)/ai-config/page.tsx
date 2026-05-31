@@ -27,10 +27,12 @@ export default function AIConfigPage() {
   // Sync state when data is loaded
   useEffect(() => {
     if (data?.config) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setAiEnabled(data.config.ai_enabled);
       setAutoOrderEnabled(data.config.auto_order_enabled);
       setSystemPrompt(data.config.system_prompt || '');
       setKnowledgeBase(data.config.knowledge_base || '');
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [data]);
 
@@ -44,8 +46,9 @@ export default function AIConfigPage() {
       });
       toast.success('AI Configuration updated successfully and synced with ChatAI Service!');
       setParsedFiles([]);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update AI Configuration.');
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || 'Failed to update AI Configuration.');
     }
   };
 
@@ -86,9 +89,10 @@ export default function AIConfigPage() {
         } else {
           toast.warning(`No readable text found in ${file.name}`);
         }
-      } catch (err: any) {
-        console.error('File parsing error:', err);
-        toast.error(`Error parsing ${file.name}: ${err.message || err}`);
+      } catch (err) {
+        const error = err as Error;
+        console.error('File parsing error:', error);
+        toast.error(`Error parsing ${file.name}: ${error.message || String(error)}`);
       }
     }
 
@@ -134,10 +138,10 @@ export default function AIConfigPage() {
         const content = await page.getTextContent();
 
         const pageText = content.items
-          .map((item: any) => {
+          .map((item: unknown) => {
             // Some items may not contain `str`
-            if ('str' in item) {
-              return item.str;
+            if (item && typeof item === 'object' && 'str' in item) {
+              return (item as { str: string }).str;
             }
 
             return '';

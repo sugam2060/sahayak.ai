@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Product, CreateProductInput, UpdateProductInput, ProductsResponse } from '@/types/product';
+import { ProductsResponse } from '@/types/product';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 

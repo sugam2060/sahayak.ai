@@ -229,7 +229,7 @@ export default function ConnectorsPage() {
             Available Integrations
           </h2>
           <p className="text-xs text-slate-400 dark:text-zinc-500 mb-6">
-            Toggle connections by completing the authorized login process. Telegram integrations require inputting your bot's token credentials.
+            Toggle connections by completing the authorized login process. Telegram integrations require inputting your bot&apos;s token credentials.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

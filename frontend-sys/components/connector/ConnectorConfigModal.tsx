@@ -118,7 +118,7 @@ export const ConnectorConfigModal: React.FC<ConnectorConfigModalProps> = ({
                 />
               </div>
               <FieldDescription className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
-                The public username of your bot (must end with "bot").
+                The public username of your bot (must end with &quot;bot&quot;).
               </FieldDescription>
               {errors.botUsername && (
                 <FieldError className="text-[11px] font-medium text-red-500 mt-1">

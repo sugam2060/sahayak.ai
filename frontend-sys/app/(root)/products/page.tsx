@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/services/api/products';
 import { ProductTable } from '@/components/products/ProductTable';
 import { ProductCard } from '@/components/products/ProductCard';
@@ -37,18 +37,20 @@ export default function ProductsPage() {
   const deleteProductMutation = useDeleteProduct();
 
   // Lodash Debouncing to limit search API triggers
-  const debouncedSearchFn = useCallback(
-    debounce((val: string) => {
-      setDebouncedSearch(val);
-    }, 400),
+  const debouncedSearchFn = useMemo(
+    () =>
+      debounce((val: string) => {
+        setDebouncedSearch(val);
+      }, 400),
     []
   );
 
   // Lodash Throttling to update immediate UI components or analytics if needed
-  const throttledSearchFn = useCallback(
-    throttle((val: string) => {
-      setThrottledSearch(val);
-    }, 600),
+  const throttledSearchFn = useMemo(
+    () =>
+      throttle((val: string) => {
+        setThrottledSearch(val);
+      }, 600),
     []
   );
 
@@ -62,8 +64,10 @@ export default function ProductsPage() {
 
   // Reset pagination cursor when filters change
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setCursor(null);
     setCursorHistory([null]);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [debouncedSearch, stockStatus, isActive]);
 
   // Clean up debounce on unmount
@@ -107,7 +111,7 @@ export default function ProductsPage() {
   };
 
   // CRUD operation handlers
-  const handleCreateOrUpdate = async (formData: any) => {
+  const handleCreateOrUpdate = async (formData: FormData) => {
     try {
       if (editingProduct) {
         await updateProductMutation.mutateAsync({
@@ -121,8 +125,9 @@ export default function ProductsPage() {
       }
       setIsFormOpen(false);
       setEditingProduct(null);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save product.');
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || 'Failed to save product.');
     }
   };
 
@@ -135,8 +140,9 @@ export default function ProductsPage() {
         if (products.length === 1 && cursorHistory.length > 1) {
           handlePrevPage();
         }
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to delete product.');
+      } catch (err) {
+        const error = err as Error;
+        toast.error(error.message || 'Failed to delete product.');
       }
     }
   };
@@ -189,7 +195,7 @@ export default function ProductsPage() {
               <Filter className="w-3.5 h-3.5 text-slate-400" />
               <select 
                 value={stockStatus} 
-                onChange={(e) => setStockStatus(e.target.value as any)}
+                onChange={(e) => setStockStatus(e.target.value as 'all' | 'in_stock' | 'out_of_stock')}
                 className="bg-transparent border-none text-slate-600 text-xs font-semibold focus:outline-none cursor-pointer pr-1"
               >
                 <option value="all">All Inventory</option>
@@ -202,7 +208,7 @@ export default function ProductsPage() {
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 h-10">
               <select 
                 value={isActive} 
-                onChange={(e) => setIsActive(e.target.value as any)}
+                onChange={(e) => setIsActive(e.target.value as 'all' | 'active' | 'inactive')}
                 className="bg-transparent border-none text-slate-600 text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 <option value="all">All Statuses</option>
@@ -242,9 +248,9 @@ export default function ProductsPage() {
         {/* Lodash Throttling debug / analytics visual indicators */}
         {searchInput && (
           <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400 font-semibold border-t border-slate-50 pt-2 px-1">
-            <span>Debounced (API Search Query): <strong className="text-indigo-600">"{debouncedSearch}"</strong></span>
+            <span>Debounced (API Search Query): <strong className="text-indigo-600">&quot;{debouncedSearch}&quot;</strong></span>
             <span className="hidden sm:inline">|</span>
-            <span>Throttled (Immediate Logs): <strong className="text-amber-600">"{throttledSearch}"</strong></span>
+            <span>Throttled (Immediate Logs): <strong className="text-amber-600">&quot;{throttledSearch}&quot;</strong></span>
           </div>
         )}
       </div>
@@ -323,6 +329,7 @@ export default function ProductsPage() {
 
       {/* Form Dialog Modal */}
       <ProductFormModal 
+        key={isFormOpen ? (editingProduct?.id || 'new') : 'closed'}
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         product={editingProduct}

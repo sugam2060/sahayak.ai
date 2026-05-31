@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Package, Check } from 'lucide-react';
 import { useProducts } from '@/services/api/products';
 import { Product } from '@/types/product';
@@ -17,13 +18,6 @@ export const ProductShareModal = ({ open, onOpenChange, onSelect }: ProductShare
   const [stockStatus, setStockStatus] = useState<'all' | 'in_stock' | 'out_of_stock'>('all');
   const [isActive, setIsActive] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
-
-  // Clear selections when modal opens/closes
-  useEffect(() => {
-    if (!open) {
-      setSelectedProducts([]);
-    }
-  }, [open]);
 
   const { data: productsData } = useProducts({
     limit: 100,
@@ -74,7 +68,7 @@ export const ProductShareModal = ({ open, onOpenChange, onSelect }: ProductShare
         <div className="flex gap-3">
           <select 
             value={stockStatus}
-            onChange={(e) => setStockStatus(e.target.value as any)}
+            onChange={(e) => setStockStatus(e.target.value as 'all' | 'in_stock' | 'out_of_stock')}
             className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-[10px] font-bold text-slate-500 cursor-pointer focus:outline-none"
           >
             <option value="all">All Stocks</option>
@@ -84,7 +78,7 @@ export const ProductShareModal = ({ open, onOpenChange, onSelect }: ProductShare
 
           <select 
             value={isActive}
-            onChange={(e) => setIsActive(e.target.value as any)}
+            onChange={(e) => setIsActive(e.target.value as 'all' | 'active' | 'inactive')}
             className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-[10px] font-bold text-slate-500 cursor-pointer focus:outline-none"
           >
             <option value="all">All Status</option>

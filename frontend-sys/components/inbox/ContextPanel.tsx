@@ -28,7 +28,7 @@ const formatTime = (isoString: string) => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  } catch (e) {
+  } catch {
     return '';
   }
 };
@@ -108,9 +108,9 @@ export const ContextPanel = ({ selectedChat, open, onOpenChange }: ContextPanelP
              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> AI Conversation Summary
              </h4>
-             <p className="text-xs text-slate-600 leading-relaxed italic">
-               "The customer has contacted support regarding their conversation history on the {chat.platform} platform. The dialogue consists of {chat.messages.length} message(s), with the last message received at {formatTime(chat.updated_at)}."
-             </p>
+              <p className="text-xs text-slate-600 leading-relaxed italic">
+                &ldquo;The customer has contacted support regarding their conversation history on the {chat.platform} platform. The dialogue consists of {chat.messages.length} message(s), with the last message received at {formatTime(chat.updated_at)}.&rdquo;
+              </p>
           </div>
         </div>
       </DialogContent>

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from shared.database.schema.refresh_tokens import RefreshToken
     from shared.database.schema.teams import TeamMember
     from shared.database.schema.orders import Order
+    from shared.database.schema.tickets import Ticket
 
 class UserRole(enum.Enum):
     OWNER = "OWNER"
@@ -56,3 +57,4 @@ class User(Base):
     refresh_token: Mapped["RefreshToken"] = relationship("RefreshToken", back_populates="user", uselist=False, cascade="all, delete-orphan")
     team_memberships: Mapped[list["TeamMember"]] = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
     assigned_orders: Mapped[list["Order"]] = relationship("Order", back_populates="assigned_agent")
+    assigned_tickets: Mapped[list["Ticket"]] = relationship("Ticket", back_populates="assigned_agent")

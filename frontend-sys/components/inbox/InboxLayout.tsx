@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { InboxSidebar } from './InboxSidebar';
@@ -14,8 +15,8 @@ const InboxLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Fetch chats to verify active chats and select latest
-  const { data, isLoading, error: chatsError } = useChats(user?.organization_id);
-  const chats = data?.chats || [];
+  const { data } = useChats(user?.organization_id);
+  const chats = useMemo(() => data?.chats || [], [data]);
 
   const handleSelectChat = (chat: { platform: string; senderId: number } | null) => {
     setSelectedChat(chat);
@@ -26,6 +27,7 @@ const InboxLayout = () => {
   useEffect(() => {
     if (chats.length > 0 && !selectedChat) {
       const latestChat = chats[0];
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedChat({
         platform: latestChat.platform,
         senderId: latestChat.user.sender_id,
@@ -154,7 +156,7 @@ const InboxLayout = () => {
       }
     };
 
-    socket.onerror = (err) => {
+    socket.onerror = () => {
       if (isClosed) return;
       console.error('[WebSocket] Connection failed. Check if API gateway is online.');
     };

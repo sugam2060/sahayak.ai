@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Product } from '@/types/product';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const formSchema = z.object({
@@ -23,13 +23,13 @@ const formSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type ProductFormData = z.infer<typeof formSchema>;
 
 interface ProductFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: Product | null;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: FormData) => Promise<void>;
   isSubmitting: boolean;
 }
 
@@ -42,8 +42,8 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
     setValue,
     reset,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(formSchema) as any,
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(formSchema) as unknown as Resolver<ProductFormData>,
     defaultValues: {
       name: '',
       description: '',
@@ -57,7 +57,6 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
   });
 
   useEffect(() => {
-    setSelectedFile(null); // Reset file selection whenever product changes
     if (product) {
       reset({
         name: product.name,
@@ -89,7 +88,7 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
     }
   };
 
-  const handleFormSubmit = async (data: FormData) => {
+  const handleFormSubmit = async (data: ProductFormData) => {
     const formData = new FormData();
     formData.append('name', data.name);
     formData.append('description', data.description || '');

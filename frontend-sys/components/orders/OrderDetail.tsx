@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React from 'react';
@@ -5,12 +6,45 @@ import { Package, Calendar, ShoppingBag, Phone, MapPin, User, ChevronLeft } from
 import { useOrder, useUpdateOrderStatus } from '@/services/api/orders';
 import Link from 'next/link';
 
+interface OrderItem {
+  id: string;
+  product_id: string | null;
+  quantity: number;
+  unit_price: number;
+  snapshot: {
+    name: string;
+    sku?: string;
+    price: number;
+    currency: string;
+    description?: string;
+    image?: string;
+  };
+}
+
+interface Order {
+  id: string;
+  platform: string;
+  external_customer_id: string | null;
+  customer_phone: string | null;
+  delivery_address: string | null;
+  status: 'pending' | 'dispatch' | 'delivered' | 'cancelled';
+  total_amount: number;
+  currency: string;
+  assigned_agent_id: string | null;
+  created_at: string;
+  updated_at: string;
+  tax_amount?: number;
+  delivery_charge?: number;
+  items: OrderItem[];
+}
+
 interface OrderDetailProps {
   id: string;
 }
 
 export const OrderDetail = ({ id }: OrderDetailProps) => {
-  const { data: order, isLoading, error } = useOrder(id);
+  const { data, isLoading, error } = useOrder(id);
+  const order = data as Order | undefined;
   const updateStatusMutation = useUpdateOrderStatus();
 
   if (isLoading) {
@@ -30,7 +64,7 @@ export const OrderDetail = ({ id }: OrderDetailProps) => {
         <div className="bg-white p-8 rounded-2xl border border-rose-100 shadow-xl flex flex-col items-center gap-4 max-w-sm w-full text-center">
           <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 font-black text-xl">!</div>
           <h3 className="text-sm font-bold text-slate-800">Failed to Load Order</h3>
-          <p className="text-xs text-slate-500">{(error as any)?.message || 'Order could not be found or you lack permission.'}</p>
+          <p className="text-xs text-slate-500">{error instanceof Error ? error.message : 'Order could not be found or you lack permission.'}</p>
           <Link href="/inbox" className="mt-2 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all cursor-pointer">
             Back to Inbox
           </Link>
@@ -206,7 +240,7 @@ export const OrderDetail = ({ id }: OrderDetailProps) => {
           </div>
 
           <div className="divide-y divide-slate-100">
-            {order.items.map((item: any) => (
+            {order.items.map((item: OrderItem) => (
               <div key={item.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">

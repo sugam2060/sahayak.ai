@@ -36,7 +36,7 @@ const formatTime = (isoString: string) => {
     } else {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
-  } catch (e) {
+  } catch {
     return '';
   }
 };
@@ -118,7 +118,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
 
         {error && (
           <div className="p-4 text-center text-xs text-rose-500">
-            Failed to load chats: {(error as any).message}
+            Failed to load chats: {error instanceof Error ? error.message : 'Unknown error'}
           </div>
         )}
 

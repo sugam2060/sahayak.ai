@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { FaInstagram, FaDiscord, FaTelegram } from 'react-icons/fa';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader } from '@/components/ui/Loader';
 import { PlatformConnector, PlatformType } from '@/types/connectors';

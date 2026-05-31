@@ -1,10 +1,11 @@
+/* eslint-disable @next/next/no-img-element, @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, MoreHorizontal, Paperclip, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu } from 'lucide-react';
+import { Plus, MoreHorizontal, Paperclip, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu, Ticket } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaTwitter } from 'react-icons/fa';
 import { useChatHistory, useSendReply, useToggleAI } from '@/services/api/chats';
 import { ContextPanel } from './ContextPanel';
@@ -15,6 +16,7 @@ import { Product } from '@/types/product';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductShareModal } from './ProductShareModal';
 import { CreateOrderModal } from './CreateOrderModal';
+import { CreateTicketModal } from './CreateTicketModal';
 
 const EmojiPicker = dynamic(
   () => import('emoji-picker-react').then((mod) => mod.default),
@@ -78,6 +80,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   const [selectedProductForCard, setSelectedProductForCard] = useState<Product | null>(null);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+  const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [cardLoadingProgress, setCardLoadingProgress] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -416,7 +419,29 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 >
                   {msg.image_url && (
                     <div className="mb-2 max-w-[280px] rounded-lg overflow-hidden border border-slate-100 bg-white flex items-center justify-center">
-                      <img src={msg.image_url} alt="Attached media" className="w-full h-auto object-contain max-h-[300px]" />
+                      {(() => {
+                        const url = msg.image_url.toLowerCase();
+                        const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.ogg'];
+                        const isVideo = videoExtensions.some(ext => url.endsWith(ext) || url.includes(ext + '?') || url.includes(ext + '#')) || url.includes('/video/upload/') || url.includes('/video/');
+                        
+                        if (isVideo) {
+                          return (
+                            <video 
+                              src={msg.image_url} 
+                              controls 
+                              preload="metadata" 
+                              className="w-full h-auto max-h-[300px] rounded"
+                            />
+                          );
+                        }
+                        return (
+                          <img 
+                            src={msg.image_url} 
+                            alt="Attached media" 
+                            className="w-full h-auto object-contain max-h-[300px]" 
+                          />
+                        );
+                      })()}
                     </div>
                   )}
                   {msg.text && msg.text !== "Shared a product card" && <div className="whitespace-pre-wrap">{renderMessageText(msg.text)}</div>}
@@ -445,9 +470,16 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         {/* Actions Popup Menu */}
         {showActions && (
           <div className="absolute left-6 bottom-20 bg-white border border-indigo-50 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 z-20 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <button type="button" onClick={() => setShowActions(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer">
-              <Paperclip className="w-4 h-4 text-indigo-500" />
-              <span>Attach File</span>
+            <button 
+              type="button" 
+              onClick={() => {
+                setShowActions(false);
+                setIsCreateTicketOpen(true);
+              }} 
+              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
+            >
+              <Ticket className="w-4 h-4 text-indigo-500" />
+              <span>Create Ticket</span>
             </button>
             <button 
               type="button" 
@@ -570,6 +602,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
       {/* Product Selector Dialog Modal */}
       <ProductShareModal 
+        key={isProductSelectorOpen ? 'product-selector-open' : 'product-selector-closed'}
         open={isProductSelectorOpen} 
         onOpenChange={setIsProductSelectorOpen} 
         onSelect={handleSelectProduct} 
@@ -577,9 +610,19 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
       {/* Create Order Dialog Modal */}
       <CreateOrderModal 
+        key={isCreateOrderOpen ? 'create-order-open' : 'create-order-closed'}
         open={isCreateOrderOpen} 
         onOpenChange={setIsCreateOrderOpen} 
         selectedChat={selectedChat} 
+      />
+
+      {/* Create Ticket Dialog Modal */}
+      <CreateTicketModal 
+        key={isCreateTicketOpen ? 'create-ticket-open' : 'create-ticket-closed'}
+        open={isCreateTicketOpen} 
+        onOpenChange={setIsCreateTicketOpen} 
+        selectedChat={selectedChat}
+        customerName={data?.chat?.user?.sender_name}
       />
 
       {/* Hidden Card Template for SVG-to-PNG conversion */}

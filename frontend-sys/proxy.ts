@@ -15,6 +15,8 @@ export async function proxy(request: NextRequest) {
     normalizedPathname === '/privacy-policy' ||
     normalizedPathname === '/terms-of-service' ||
     pathname.startsWith('/verify/') ||
+    pathname.startsWith('/track-your-order/') ||
+    pathname.startsWith('/track-your-ticket/') ||
     pathname.startsWith('/api/') || // Allow API routes (though they should have their own auth)
     pathname === '/favicon.ico' ||
     pathname.startsWith('/_next/') ||

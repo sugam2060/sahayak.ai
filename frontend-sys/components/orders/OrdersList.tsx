@@ -5,6 +5,16 @@ import { ShoppingBag, Calendar, ArrowRight } from 'lucide-react';
 import { useOrders, useUpdateOrderStatus } from '@/services/api/orders';
 import Link from 'next/link';
 
+interface Order {
+  id: string;
+  platform: string;
+  customer_phone: string | null;
+  created_at: string;
+  total_amount: number;
+  currency: string;
+  status: string;
+}
+
 const OrderStatusDropdown = ({ id, status }: { id: string; status: string }) => {
   const updateStatusMutation = useUpdateOrderStatus();
 
@@ -53,7 +63,8 @@ const OrderStatusDropdown = ({ id, status }: { id: string; status: string }) => 
 };
 
 export const OrdersList = () => {
-  const { data: orders, isLoading, error } = useOrders();
+  const { data, isLoading, error } = useOrders();
+  const orders = data as Order[] | undefined;
 
   if (isLoading) {
     return (
@@ -72,7 +83,7 @@ export const OrdersList = () => {
         <div className="bg-white p-8 rounded-2xl border border-rose-100 shadow-xl flex flex-col items-center gap-4 max-w-sm w-full text-center">
           <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 font-black text-xl">!</div>
           <h3 className="text-sm font-bold text-slate-800">Failed to Load Orders</h3>
-          <p className="text-xs text-slate-500">{(error as any)?.message || 'Could not retrieve orders catalog.'}</p>
+          <p className="text-xs text-slate-500">{error instanceof Error ? error.message : 'Could not retrieve orders catalog.'}</p>
         </div>
       </div>
     );
@@ -113,7 +124,7 @@ export const OrdersList = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                {orders.map((order: any) => {
+                {orders.map((order: Order) => {
                   const date = new Date(order.created_at).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',

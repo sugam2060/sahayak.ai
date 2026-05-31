@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import QueryProvider from "@/components/providers/QueryProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { Suspense } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +32,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <QueryProvider>
-          {children}
+          <Suspense fallback={
+            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6">
+              <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            {children}
+          </Suspense>
           <Toaster />
         </QueryProvider>
       </body>

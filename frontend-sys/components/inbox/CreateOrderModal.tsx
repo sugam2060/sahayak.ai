@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Package, Trash2, Plus, Minus, Search, ShoppingBag } from 'lucide-react';
 import { useProducts } from '@/services/api/products';
 import { useCreateOrder, CreateOrderItemInput } from '@/services/api/orders';
@@ -30,19 +31,6 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
 
   const createOrderMutation = useCreateOrder();
   const sendReplyMutation = useSendReply();
-
-  // Reset state on open/close
-  useEffect(() => {
-    if (!open) {
-      setPhone('');
-      setAddress('');
-      setSelectedItems([]);
-      setSubmitError(null);
-      setSearch('');
-      setTax('0');
-      setDeliveryCharge('0');
-    }
-  }, [open]);
 
   // Fetch catalog products
   const { data: productsData } = useProducts({
@@ -142,8 +130,8 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
       }
 
       onOpenChange(false);
-    } catch (err: any) {
-      setSubmitError(err.message || 'Failed to create order.');
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to create order.');
     }
   };
 

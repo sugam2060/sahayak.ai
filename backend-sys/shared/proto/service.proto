@@ -317,3 +317,81 @@ message UpdateOrderStatusResponse {
   string message = 4;
 }
 
+service TicketService {
+  rpc CreateTicket (CreateTicketRequest) returns (CreateTicketResponse);
+  rpc ListTickets (ListTicketsRequest) returns (ListTicketsResponse);
+  rpc GetTicketDetail (GetTicketDetailRequest) returns (GetTicketDetailResponse);
+  rpc UpdateTicket (UpdateTicketRequest) returns (UpdateTicketResponse);
+}
+
+message TicketInfo {
+  string id = 1;
+  string organization_id = 2;
+  string title = 3;
+  string description = 4;
+  string status = 5;
+  string priority = 6;
+  string customer_name = 7;
+  string customer_phone = 8;
+  string assigned_agent_id = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message CreateTicketRequest {
+  string organization_id = 1;
+  string title = 2;
+  string description = 3;
+  string priority = 4;
+  string customer_name = 5;
+  string customer_phone = 6;
+  string assigned_agent_id = 7;
+}
+
+message CreateTicketResponse {
+  bool success = 1;
+  TicketInfo ticket = 2;
+  string message = 3;
+}
+
+message ListTicketsRequest {
+  string organization_id = 1;
+  int32 limit = 2;
+  string cursor = 3;
+  string status = 4;
+  string priority = 5;
+  string search = 6;
+}
+
+message ListTicketsResponse {
+  bool success = 1;
+  repeated TicketInfo tickets = 2;
+  string next_cursor = 3;
+  bool has_next = 4;
+  string message = 5;
+}
+
+message GetTicketDetailRequest {
+  string organization_id = 1;
+  string ticket_id = 2;
+}
+
+message GetTicketDetailResponse {
+  bool success = 1;
+  TicketInfo ticket = 2;
+  string message = 3;
+}
+
+message UpdateTicketRequest {
+  string organization_id = 1;
+  string ticket_id = 2;
+  string status = 3;
+  string priority = 4;
+}
+
+message UpdateTicketResponse {
+  bool success = 1;
+  TicketInfo ticket = 2;
+  string message = 3;
+}
+

@@ -20,6 +20,7 @@ from services.api_gateway.routers.connectors import connector_route
 from services.api_gateway.routers.chat_routers import telegram_webhook_router, chats_router
 from services.api_gateway.routers import products, orders
 from services.api_gateway.routers.ai_config import router as ai_config_router
+from services.api_gateway.routers.ticket import router as ticket_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     app.state.auth_stub = service_pb2_grpc.AuthServiceStub(auth_channel)
     app.state.product_stub = service_pb2_grpc.ProductServiceStub(workers_channel)
     app.state.order_stub = service_pb2_grpc.OrderServiceStub(workers_channel)
+    app.state.ticket_stub = service_pb2_grpc.TicketServiceStub(workers_channel)
     
     from shared.database.mongodb import MongoDBManager
     
@@ -83,6 +85,7 @@ app.include_router(chats_router)
 app.include_router(products.router)
 app.include_router(orders.router)
 app.include_router(ai_config_router)
+app.include_router(ticket_router)
 
 @app.get("/health")
 async def health_check():
