@@ -18,12 +18,25 @@ class KafkaChatWorker:
         bootstrap_servers = [s.strip() for s in KAFKA_BOOTSTRAP_SERVERS.split(",")]
         logger.info(f"Connecting chat worker to Kafka brokers: {bootstrap_servers}")
         
+        from shared.config import KAFKA_SECURITY_PROTOCOL
+        kwargs = {
+            "bootstrap_servers": bootstrap_servers,
+            "group_id": "chat-worker-group",
+            "value_deserializer": lambda v: json.loads(v.decode("utf-8")),
+            "auto_offset_reset": "earliest"
+        }
+        
+        if KAFKA_SECURITY_PROTOCOL == "SASL_SSL":
+            from shared.kafka_producer import msk_oauth_callback
+            kwargs.update({
+                "security_protocol": "SASL_SSL",
+                "sasl_mechanism": "OAUTHBEARER",
+                "sasl_oauth_token_provider": msk_oauth_callback
+            })
+            
         self.consumer = AIOKafkaConsumer(
             "chat_service",
-            bootstrap_servers=bootstrap_servers,
-            group_id="chat-worker-group",
-            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-            auto_offset_reset="earliest"
+            **kwargs
         )
         
         await self.consumer.start()

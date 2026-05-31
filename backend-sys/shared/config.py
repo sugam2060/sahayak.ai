@@ -45,12 +45,16 @@ APP_ENV = config("APP_ENV", default="development")
 INSTAGRAM_CLIENT_ID = config("INSTAGRAM_CLIENT_ID", default="")
 INSTAGRAM_CLIENT_SECRET = config("INSTAGRAM_CLIENT_SECRET", default="")
 INSTAGRAM_REDIRECT_URI = config("INSTAGRAM_REDIRECT_URI", default="https://unoared-unpesterous-amir.ngrok-free.dev/connectors/oauth/callback/instagram")
+INSTAGRAM_VERIFY_TOKEN = config("INSTAGRAM_VERIFY_TOKEN", default="123456789")
+INSTAGRAM_ACCESS_TOKEN = config("INSTAGRAM_ACCESS_TOKEN", default="")
 
 # Telegram Configuration
 TELEGRAM_API_BASE_URL = config("TELEGRAM_API_BASE_URL", default="https://api.telegram.org")
 
 # Kafka Configuration
 KAFKA_BOOTSTRAP_SERVERS = config("KAFKA_BOOTSTRAP_SERVERS", default="localhost:9092,localhost:9093,localhost:9094")
+KAFKA_SECURITY_PROTOCOL = config("KAFKA_SECURITY_PROTOCOL", default="PLAINTEXT")
+AWS_REGION = config("AWS_REGION", default="ap-south-1")
 
 # MongoDB Configuration
 MONGODB_URL = config("MONGODB_URL", default="mongodb+srv://sugam2060:XNCBD8sEsMceta6m@cluster0.fxcagu2.mongodb.net/")

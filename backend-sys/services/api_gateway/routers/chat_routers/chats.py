@@ -580,12 +580,25 @@ async def consume_chat_websocket_events():
         logger.info(f"[WebSocket Kafka Consumer] Starting on brokers: {bootstrap_servers}")
         
         # Use auto_offset_reset='latest' since websocket clients only care about real-time events while connected.
+        from shared.config import KAFKA_SECURITY_PROTOCOL
+        kwargs = {
+            "bootstrap_servers": bootstrap_servers,
+            "group_id": "api-gateway-ws-group",
+            "value_deserializer": lambda v: json.loads(v.decode("utf-8")),
+            "auto_offset_reset": "latest"
+        }
+        
+        if KAFKA_SECURITY_PROTOCOL == "SASL_SSL":
+            from shared.kafka_producer import msk_oauth_callback
+            kwargs.update({
+                "security_protocol": "SASL_SSL",
+                "sasl_mechanism": "OAUTHBEARER",
+                "sasl_oauth_token_provider": msk_oauth_callback
+            })
+            
         consumer = AIOKafkaConsumer(
             "chat_websocket",
-            bootstrap_servers=bootstrap_servers,
-            group_id="api-gateway-ws-group",
-            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-            auto_offset_reset="latest"
+            **kwargs
         )
         
         await consumer.start()

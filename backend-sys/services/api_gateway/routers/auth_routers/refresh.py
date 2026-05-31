@@ -71,8 +71,9 @@ async def refresh_token(
             key="access_token",
             value=grpc_response.access_token,
             httponly=True,
-            secure=False,  # Set to True in production (HTTPS)
-            samesite="lax",
+            secure=True,  # Set to True in production (HTTPS)
+            samesite="none",
+            domain=None,
             max_age=3600,   # 1 hour
             path="/"
         )

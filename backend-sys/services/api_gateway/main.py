@@ -17,7 +17,7 @@ from shared.config import AUTH_SERVICE_ADDR, WORKERS_SERVICE_ADDR, GATEWAY_PORT
 from services.api_gateway.middlewares.rate_limiter import SlidingWindowRateLimiter
 from services.api_gateway.routers.auth_routers import registration, verification, login, me, refresh, logout
 from services.api_gateway.routers.connectors import connector_route
-from services.api_gateway.routers.chat_routers import telegram_webhook_router, chats_router
+from services.api_gateway.routers.chat_routers import telegram_webhook_router, chats_router, instagram_webhook_router
 from services.api_gateway.routers import products, orders
 from services.api_gateway.routers.ai_config import router as ai_config_router
 from services.api_gateway.routers.ticket import router as ticket_router
@@ -56,7 +56,7 @@ app = FastAPI(lifespan=lifespan)
 # Add CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000","*"],
+    allow_origins=["http://localhost:3000","https://sahayak.sugampudasain.xyz"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,6 +81,7 @@ app.include_router(refresh.router)
 app.include_router(logout.router)
 app.include_router(connector_route.router)
 app.include_router(telegram_webhook_router)
+app.include_router(instagram_webhook_router)
 app.include_router(chats_router)
 app.include_router(products.router)
 app.include_router(orders.router)
