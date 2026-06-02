@@ -16,8 +16,6 @@ import {
 } from '@/services/api/connectors';
 import { PlatformType, TelegramConnectorConfig } from '@/types/connectors';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function ConnectorsPage() {
   const { data: connectors, isLoading, isError, refetch } = useConnectors();
   const connectOAuth = useConnectOAuth();
@@ -28,13 +26,10 @@ export default function ConnectorsPage() {
 
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [activeActionPlatform, setActiveActionPlatform] = useState<PlatformType | null>(null);
-
   useEffect(() => {
     const status = searchParams.get('status');
     const message = searchParams.get('message');
     const platform = searchParams.get('platform');
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
 
     if (status === 'success') {
       toast.success(`Successfully connected ${platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : 'platform'}!`);
@@ -43,9 +38,6 @@ export default function ConnectorsPage() {
     } else if (status === 'error') {
       toast.error(message || 'Failed to authenticate and connect platform.');
       router.replace('/connectors');
-    } else if (code && state) {
-      toast.loading('Processing Instagram connection...');
-      window.location.href = `${API_BASE_URL}/connectors/oauth/callback/instagram?code=${code}&state=${state}`;
     }
   }, [searchParams, router, refetch]);
 

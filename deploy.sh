@@ -4,7 +4,7 @@ set -e
 # Configuration
 DEVICES_DIR="backend-sys"
 DEPLOY_DIR="$DEVICES_DIR/deployment"
-KEY_FILE="$DEPLOY_DIR/id_ed25519"
+KEY_FILE="$DEPLOY_DIR/aws-key"
 DOCKER_USER="sugam2060"
 
 # Fetch EC2 Public IP dynamically from Terraform outputs

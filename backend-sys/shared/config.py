@@ -54,7 +54,7 @@ APP_ENV = config("APP_ENV", default="development")
 # Instagram / Facebook Configuration
 INSTAGRAM_APP_ID = config("INSTAGRAM_APP_ID", default="")
 INSTAGRAM_APP_SECRET = config("INSTAGRAM_APP_SECRET", default="")
-INSTAGRAM_REDIRECT_URI = config("INSTAGRAM_REDIRECT_URI", default="https://unoared-unpesterous-amir.ngrok-free.dev/connectors/oauth/callback/instagram")
+INSTAGRAM_REDIRECT_URI = config("INSTAGRAM_REDIRECT_URI", default="https://api.sugampudasain.xyz/connectors/oauth/callback/instagram")
 INSTAGRAM_WEBHOOK_TOKEN = config("INSTAGRAM_VERIFY_TOKEN", default="123456789")
 INSTAGRAM_VERIFY_TOKEN = INSTAGRAM_WEBHOOK_TOKEN
 

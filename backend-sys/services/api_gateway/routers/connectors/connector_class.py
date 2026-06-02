@@ -3,10 +3,10 @@ import sys
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional
 from uuid import UUID
 import httpx
-
+from urllib.parse import urlencode
 logger = logging.getLogger("api_gateway.connector_class")
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -99,21 +99,26 @@ class BaseConnector(ABC):
 
 
 class InstagramConnector(BaseConnector):
-    """Handles OAuth handshake and API details integration for Instagram Graph API accounts."""
+    """Handles OAuth handshake and API details integration for Instagram Login for Business."""
 
     def get_authorization_url(self, state: str) -> str:
         if not INSTAGRAM_APP_ID:
             raise ConnectorError("Instagram configuration is missing: INSTAGRAM_APP_ID not configured.", 500)
         
+        # Scopes requested specifically by Meta's dashboard
+        scope_str = "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments"
+        
         params = {
-            "client_id": INSTAGRAM_APP_ID,
+            "client_id": int(INSTAGRAM_APP_ID), 
             "redirect_uri": INSTAGRAM_REDIRECT_URI,
-            "scope": "user_profile,user_media",
             "response_type": "code",
+            "scope": scope_str,
             "state": state
         }
-        query_string = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"https://api.instagram.com/oauth/authorize?{query_string}"
+        
+        # urlencode correctly parses special characters into safe HTTP codes (%2F, %3A, %2C)
+        query_string = urlencode(params)
+        return f"https://www.instagram.com/oauth/authorize?{query_string}"
 
     async def connect(self, session: AsyncSession, business_id: UUID, code: str) -> PlatformConnector:
         # 1. Exchange short-lived token
@@ -122,14 +127,14 @@ class InstagramConnector(BaseConnector):
         if not short_token:
             raise ConnectorError("Failed to retrieve short-lived access token from Instagram response.")
 
-        # 2. Exchange for a long-lived access token (typical for SaaS backends)
+        # 2. Exchange for a long-lived access token
         tokens = await self._exchange_long_lived_token(short_token)
         long_token = tokens.get("access_token")
         if not long_token:
-            long_token = short_token  # Fallback to short-lived token if exchange failed
+            long_token = short_token
             tokens = short_tokens
 
-        # 3. Fetch user profile
+        # 3. Fetch business user profile 
         profile = await self._fetch_account_info(long_token)
         platform_account_id = profile.get("id")
         platform_account_name = profile.get("username")
@@ -138,8 +143,8 @@ class InstagramConnector(BaseConnector):
             raise ConnectorError("Failed to fetch user ID from Instagram profile API.")
 
         metadata = {
-            "account_type": profile.get("account_type"),
-            "username": profile.get("username")
+            "account_type": "BUSINESS",  # This flow is implicitly for Business/Creator accounts
+            "username": platform_account_name
         }
         return await self.save_connector(
             session=session,
@@ -154,7 +159,7 @@ class InstagramConnector(BaseConnector):
     async def _exchange_code(self, code: str) -> dict:
         url = "https://api.instagram.com/oauth/access_token"
         data = {
-            "client_id": INSTAGRAM_APP_ID,
+            "client_id": int(INSTAGRAM_APP_ID),
             "client_secret": INSTAGRAM_APP_SECRET,
             "grant_type": "authorization_code",
             "redirect_uri": INSTAGRAM_REDIRECT_URI,
@@ -163,6 +168,7 @@ class InstagramConnector(BaseConnector):
 
         async with httpx.AsyncClient() as client:
             try:
+                # Crucial: Must be sent as form data (x-www-form-urlencoded), which `data=` handles automatically
                 response = await client.post(url, data=data, timeout=15.0)
                 if response.status_code != 200:
                     raise ConnectorError(f"Instagram short token exchange failed: {response.text}")
@@ -183,7 +189,6 @@ class InstagramConnector(BaseConnector):
             try:
                 response = await client.get(url, params=params, timeout=15.0)
                 if response.status_code != 200:
-                    # Log failure but don't break flow since short lived token still exists
                     print(f"Failed to exchange Instagram long-lived token: {response.text}")
                     return {"access_token": short_lived_token}
                 
@@ -195,9 +200,10 @@ class InstagramConnector(BaseConnector):
                 return {"access_token": short_lived_token}
 
     async def _fetch_account_info(self, access_token: str) -> dict:
-        url = "https://graph.instagram.com/me"
+        # Endpoint for tracking user context via Instagram Business Login
+        url = "https://graph.instagram.com/v20.0/me"
         params = {
-            "fields": "id,username,account_type",
+            "fields": "id,username",
             "access_token": access_token
         }
 
@@ -209,7 +215,6 @@ class InstagramConnector(BaseConnector):
                 return response.json()
             except httpx.HTTPError as e:
                 raise ConnectorError(f"Network error fetching Instagram user profile: {str(e)}", 502)
-
 
 class TelegramConnector:
     """Handles Telegram bot credentials validation and integration."""
