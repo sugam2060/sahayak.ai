@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 from contextlib import asynccontextmanager
 from shared.proto import service_pb2, service_pb2_grpc
-from shared.config import AUTH_SERVICE_ADDR, WORKERS_SERVICE_ADDR, GATEWAY_PORT
+from shared.config import AUTH_SERVICE_ADDR, WORKERS_SERVICE_ADDR, GATEWAY_PORT, APP_ENV
 from services.api_gateway.middlewares.rate_limiter import SlidingWindowRateLimiter
 from services.api_gateway.routers.auth_routers import registration, verification, login, me, refresh, logout
 from services.api_gateway.routers.connectors import connector_route
@@ -51,7 +51,16 @@ async def lifespan(app: FastAPI):
     await workers_channel.close()
     await MongoDBManager.close()
 
-app = FastAPI(lifespan=lifespan)
+# Disable API documentation endpoints in production
+if APP_ENV == "production":
+    app = FastAPI(
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None
+    )
+else:
+    app = FastAPI(lifespan=lifespan)
 
 # Add CORS Middleware
 app.add_middleware(

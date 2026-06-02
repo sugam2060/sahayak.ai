@@ -5,10 +5,20 @@ import os
 # Find the .env file in the root directory
 # Assuming this file is in my-monorepo/shared/config.py
 # Root is one level up from shared/
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-env_file = os.path.join(base_dir, ".env")
-
-config = Config(env_file if os.path.exists(env_file) else None)
+# 1. First, check if we are running inside Docker
+if os.path.exists("/.dockerenv"):
+    # Inside Docker, rely strictly on OS environment variables injected by Compose
+    config = Config()
+else:
+    # Local fallback (running bare-metal via terminal)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # If running bare metal from root, .env is up one more level
+    env_file = os.path.join(base_dir, "..", ".env") 
+    if not os.path.exists(env_file):
+        # Fallback to local directory if structure varies
+        env_file = os.path.join(base_dir, ".env")
+        
+    config = Config(env_file if os.path.exists(env_file) else None)
 
 # Database
 DATABASE_URL = config("DATABASE_URL", default="postgresql+asyncpg://user:pass@localhost:5432/dbname")
@@ -42,11 +52,12 @@ REFRESH_TOKEN_EXPIRE_DAYS = config("REFRESH_TOKEN_EXPIRE_DAYS", cast=int, defaul
 APP_ENV = config("APP_ENV", default="development")
 
 # Instagram / Facebook Configuration
-INSTAGRAM_CLIENT_ID = config("INSTAGRAM_CLIENT_ID", default="")
-INSTAGRAM_CLIENT_SECRET = config("INSTAGRAM_CLIENT_SECRET", default="")
+INSTAGRAM_APP_ID = config("INSTAGRAM_APP_ID", default="")
+INSTAGRAM_APP_SECRET = config("INSTAGRAM_APP_SECRET", default="")
 INSTAGRAM_REDIRECT_URI = config("INSTAGRAM_REDIRECT_URI", default="https://unoared-unpesterous-amir.ngrok-free.dev/connectors/oauth/callback/instagram")
-INSTAGRAM_VERIFY_TOKEN = config("INSTAGRAM_VERIFY_TOKEN", default="123456789")
-INSTAGRAM_ACCESS_TOKEN = config("INSTAGRAM_ACCESS_TOKEN", default="")
+INSTAGRAM_WEBHOOK_TOKEN = config("INSTAGRAM_VERIFY_TOKEN", default="123456789")
+INSTAGRAM_VERIFY_TOKEN = INSTAGRAM_WEBHOOK_TOKEN
+
 
 # Telegram Configuration
 TELEGRAM_API_BASE_URL = config("TELEGRAM_API_BASE_URL", default="https://api.telegram.org")

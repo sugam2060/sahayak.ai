@@ -65,7 +65,7 @@ async def login(request: Request, data: LoginSchema):
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=None,
+            domain=".sugampudasain.xyz",
             max_age=3600,   # 1 hour
             path="/"
         )
@@ -75,7 +75,7 @@ async def login(request: Request, data: LoginSchema):
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=None,
+            domain=".sugampudasain.xyz",
             max_age=30 * 24 * 3600,  # 30 days
             path="/"
         )

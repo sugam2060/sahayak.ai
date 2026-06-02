@@ -28,7 +28,7 @@ async def logout(request: Request):
     })
     
     # Securely remove tokens from the browser
-    response.delete_cookie(key="access_token", path="/")
-    response.delete_cookie(key="refresh_token", path="/")
+    response.delete_cookie(key="access_token", path="/", domain=".sugampudasain.xyz")
+    response.delete_cookie(key="refresh_token", path="/", domain=".sugampudasain.xyz")
     
     return response

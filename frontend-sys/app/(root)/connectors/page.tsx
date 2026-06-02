@@ -1,28 +1,53 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { RiPlugLine } from 'react-icons/ri';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ConnectorCard } from '@/components/connector/ConnectorCard';
 import { ConnectorConfigModal } from '@/components/connector/ConnectorConfigModal';
 import { ConnectorStats } from '@/components/connector/ConnectorStats';
 import { Loader } from '@/components/ui/Loader';
 import {
   useConnectors,
-  // useConnectOAuth,
+  useConnectOAuth,
   useConnectTelegram,
   useDisconnectPlatform,
 } from '@/services/api/connectors';
 import { PlatformType, TelegramConnectorConfig } from '@/types/connectors';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function ConnectorsPage() {
   const { data: connectors, isLoading, isError, refetch } = useConnectors();
-  // const connectOAuth = useConnectOAuth();
+  const connectOAuth = useConnectOAuth();
   const connectTelegram = useConnectTelegram();
   const disconnectPlatform = useDisconnectPlatform();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [activeActionPlatform, setActiveActionPlatform] = useState<PlatformType | null>(null);
+
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const message = searchParams.get('message');
+    const platform = searchParams.get('platform');
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+
+    if (status === 'success') {
+      toast.success(`Successfully connected ${platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : 'platform'}!`);
+      refetch();
+      router.replace('/connectors');
+    } else if (status === 'error') {
+      toast.error(message || 'Failed to authenticate and connect platform.');
+      router.replace('/connectors');
+    } else if (code && state) {
+      toast.loading('Processing Instagram connection...');
+      window.location.href = `${API_BASE_URL}/connectors/oauth/callback/instagram?code=${code}&state=${state}`;
+    }
+  }, [searchParams, router, refetch]);
 
   const handleConnect = async (platform: PlatformType) => {
     if (platform === 'telegram') {
@@ -30,110 +55,17 @@ export default function ConnectorsPage() {
       return;
     }
 
-    // Trigger simulated OAuth popup
-    // setActiveActionPlatform(platform);
-    
-    // Open a real popup window to make the OAuth feel natural
-    // const popupWidth = 600;
-    // const popupHeight = 650;
-    // const left = window.screenX + (window.outerWidth - popupWidth) / 2;
-    // const top = window.screenY + (window.outerHeight - popupHeight) / 2;
-    
-    // const popup = window.open(
-    //   '',
-    //   'OAuth_Authentication',
-    //   `width=${popupWidth},height=${popupHeight},left=${left},top=${top},scrollbars=no,resizable=no`
-    // );
-    
-    // if (popup) {
-    //   popup.document.write(`
-    //     <!DOCTYPE html>
-    //     <html>
-    //       <head>
-    //         <title>Authorize Sahayak AI</title>
-    //         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    //         <style>
-    //           body {
-    //             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    //             display: flex;
-    //             flex-direction: column;
-    //             align-items: center;
-    //             justify-content: center;
-    //             height: 100vh;
-    //             margin: 0;
-    //             background-color: #F9F9FB;
-    //             color: #1A1A1A;
-    //             text-align: center;
-    //             padding: 20px;
-    //           }
-    //           .container {
-    //             max-width: 400px;
-    //             padding: 30px;
-    //             background: white;
-    //             border-radius: 16px;
-    //             box-shadow: 0 10px 25px rgba(99, 73, 185, 0.08);
-    //             border: 1px solid rgba(99, 73, 185, 0.1);
-    //           }
-    //           .logo {
-    //             font-weight: 800;
-    //             font-size: 24px;
-    //             color: #6349b9;
-    //             margin-bottom: 24px;
-    //           }
-    //           .spinner {
-    //             border: 3px solid rgba(99, 73, 185, 0.1);
-    //             width: 40px;
-    //             height: 40px;
-    //             border-radius: 50%;
-    //             border-left-color: #6349b9;
-    //             animation: spin 1s linear infinite;
-    //             margin: 0 auto 20px;
-    //           }
-    //           @keyframes spin {
-    //             0% { transform: rotate(0deg); }
-    //             100% { transform: rotate(360deg); }
-    //           }
-    //           h2 {
-    //             margin: 0 0 10px 0;
-    //             font-size: 20px;
-    //             font-weight: 700;
-    //           }
-    //           p {
-    //             color: #6B7BA0;
-    //             font-size: 14px;
-    //             line-height: 1.5;
-    //             margin: 0;
-    //           }
-    //         </style>
-    //       </head>
-    //       <body>
-    //         <div class="container">
-    //           <div class="logo">Sahayak AI</div>
-    //           <div class="spinner"></div>
-    //           <h2>Authorizing ${platform.charAt(0).toUpperCase() + platform.slice(1)}</h2>
-    //           <p>Please wait while we establish a secure OAuth connection to your seller profile...</p>
-    //         </div>
-    //         <script>
-    //           setTimeout(() => {
-    //             window.close();
-    //           }, 1200);
-    //         </script>
-    //       </body>
-    //     </html>
-    //   `);
-    //   popup.document.close();
-    // }
-
-    // toast.promise(
-    //   connectOAuth.mutateAsync(platform).finally(() => {
-    //     setActiveActionPlatform(null);
-    //   }),
-    //   {
-    //     loading: `Opening ${platform} OAuth window...`,
-    //     success: `Successfully connected ${platform.charAt(0).toUpperCase() + platform.slice(1)}!`,
-    //     error: `Failed to authenticate ${platform}. Please try again.`,
-    //   }
-    // );
+    setActiveActionPlatform(platform);
+    toast.promise(
+      connectOAuth.mutateAsync(platform).finally(() => {
+        setActiveActionPlatform(null);
+      }),
+      {
+        loading: `Opening ${platform.charAt(0).toUpperCase() + platform.slice(1)} OAuth window...`,
+        success: `Redirecting to ${platform.charAt(0).toUpperCase() + platform.slice(1)}...`,
+        error: `Failed to authenticate ${platform}. Please try again.`,
+      }
+    );
   };
 
   const handleDisconnect = async (platform: PlatformType) => {

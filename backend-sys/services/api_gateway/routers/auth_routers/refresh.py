@@ -73,7 +73,7 @@ async def refresh_token(
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=None,
+            domain=".sugampudasain.xyz",
             max_age=3600,   # 1 hour
             path="/"
         )
@@ -83,8 +83,9 @@ async def refresh_token(
             key="refresh_token",
             value=grpc_response.refresh_token,
             httponly=True,
-            secure=False,  # Set to True in production (HTTPS)
-            samesite="lax",
+            secure=True,  # Set to True in production (HTTPS)
+            samesite="none",
+            domain=".sugampudasain.xyz",
             max_age=30 * 24 * 3600,  # 30 days
             path="/"
         )

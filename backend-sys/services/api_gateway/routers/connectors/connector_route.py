@@ -23,7 +23,7 @@ from services.api_gateway.routers.auth_routers.me import get_current_user
 from shared.database.schema.platform_connectors import PlatformConnector
 from services.api_gateway.routers.connectors.connector_class import (
     ConnectorError,
-    # InstagramConnector,
+    InstagramConnector,
     TelegramConnector,
 )
 
@@ -59,107 +59,107 @@ class TelegramConnectRequest(BaseModel):
         return v.strip()
 
 
-# def get_connector(platform: str):
-#     """Factory helper to retrieve the correct connector class based on platform name."""
-#     platform = platform.lower()
-#     if platform == "instagram":
-#         return InstagramConnector()
-#     else:
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail=f"Unsupported OAuth platform: '{platform}'. Only 'instagram' is supported."
-#         )
-# 
-# 
-# @router.get("/oauth/url/{platform}")
-# async def get_oauth_url(platform: str, current_user: dict = Depends(get_current_user)):
-#     """
-#     Generates the authorization redirect URL for TikTok or Instagram OAuth flows.
-#     Authenticates the request and signs user session context into a secure JWT state token.
-#     """
-#     connector = get_connector(platform)
-# 
-#     # Generate a signed JWT state token containing business identity
-#     # Expires in 10 minutes to prevent replay and CSRF attacks
-#     state_payload = {
-#         "business_id": str(current_user["organization_id"]),
-#         "user_id": str(current_user["user_id"]),
-#         "platform": platform.lower(),
-#         "exp": datetime.utcnow() + timedelta(minutes=10)
-#     }
-#     state_token = jwt.encode(state_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-# 
-#     try:
-#         auth_url = connector.get_authorization_url(state=state_token)
-#         return {"success": True, "url": auth_url}
-#     except ConnectorError as e:
-#         raise HTTPException(status_code=e.status_code, detail=e.message)
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"An error occurred while generating authorization URL: {str(e)}"
-#         )
-# 
-# 
-# @router.get("/oauth/callback/{platform}")
-# async def oauth_callback(
-#     platform: str,
-#     code: Optional[str] = None,
-#     auth_code: Optional[str] = Query(None),
-#     state: Optional[str] = None,
-#     error: Optional[str] = None,
-#     error_description: Optional[str] = None,
-#     db: AsyncSession = Depends(get_db)
-# ):
-#     """
-#     Callback endpoint redirected to by TikTok/Instagram after user authorization.
-#     Decodes the secure JWT state token, exchanges code for access tokens, and registers the connection.
-#     """
-#     # Normalize authorization code parameter
-#     effective_code = code or auth_code
-# 
-#     # 1. Handle error responses returned directly by OAuth providers
-#     if error or not effective_code or not state:
-#         err_msg = error_description or error or "User denied or cancelled connection request."
-#         redirect_url = f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}"
-#         return RedirectResponse(url=redirect_url)
-# 
-#     # 2. Decode and validate state parameter (JWT)
-#     try:
-#         payload = jwt.decode(state, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-#         business_id_str = payload.get("business_id")
-#         state_platform = payload.get("platform")
-# 
-#         if not business_id_str or state_platform != platform.lower():
-#             raise jwt.InvalidTokenError("Invalid state payload structure.")
-#         
-#         business_id = UUID(business_id_str)
-#     except jwt.ExpiredSignatureError:
-#         err_msg = "OAuth state signature expired. Please request a new authorization link."
-#         return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
-#     except jwt.InvalidTokenError:
-#         err_msg = "OAuth state authentication verification failed. Unauthorized callback."
-#         return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
-# 
-#     # 3. Instantiate platform-specific connector and trigger handshake/upsert
-#     try:
-#         connector = get_connector(platform)
-#         await connector.connect(session=db, business_id=business_id, code=effective_code)
-#         
-#         # Connection succeeded: redirect back to frontend with success parameters
-#         return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=success&platform={platform.lower()}")
-#     except ConnectorError as e:
-#         import traceback
-#         print(f"[OAuth Callback Error] ConnectorError occurred: status_code={e.status_code}, message={e.message}", flush=True)
-#         traceback.print_exc()
-#         err_msg = f"Handshake failed: {e.message}"
-#         return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
-#     except Exception as e:
-#         import traceback
-#         print(f"[OAuth Callback Error] Unexpected exception: {str(e)}", flush=True)
-#         traceback.print_exc()
-#         err_msg = f"An unexpected error occurred: {str(e)}"
-#         return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
+def get_connector(platform: str):
+    """Factory helper to retrieve the correct connector class based on platform name."""
+    platform = platform.lower()
+    if platform == "instagram":
+        return InstagramConnector()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported OAuth platform: '{platform}'. Only 'instagram' is supported."
+        )
+
+
+@router.get("/oauth/url/{platform}")
+async def get_oauth_url(platform: str, current_user: dict = Depends(get_current_user)):
+    """
+    Generates the authorization redirect URL for TikTok or Instagram OAuth flows.
+    Authenticates the request and signs user session context into a secure JWT state token.
+    """
+    connector = get_connector(platform)
+
+    # Generate a signed JWT state token containing business identity
+    # Expires in 10 minutes to prevent replay and CSRF attacks
+    state_payload = {
+        "business_id": str(current_user["organization_id"]),
+        "user_id": str(current_user["user_id"]),
+        "platform": platform.lower(),
+        "exp": datetime.utcnow() + timedelta(minutes=10)
+    }
+    state_token = jwt.encode(state_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+    try:
+        auth_url = connector.get_authorization_url(state=state_token)
+        return {"success": True, "url": auth_url}
+    except ConnectorError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while generating authorization URL: {str(e)}"
+        )
+
+
+@router.get("/oauth/callback/{platform}")
+async def oauth_callback(
+    platform: str,
+    code: Optional[str] = None,
+    auth_code: Optional[str] = Query(None),
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    error_description: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Callback endpoint redirected to by TikTok/Instagram after user authorization.
+    Decodes the secure JWT state token, exchanges code for access tokens, and registers the connection.
+    """
+    # Normalize authorization code parameter
+    effective_code = code or auth_code
+
+    # 1. Handle error responses returned directly by OAuth providers
+    if error or not effective_code or not state:
+        err_msg = error_description or error or "User denied or cancelled connection request."
+        redirect_url = f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}"
+        return RedirectResponse(url=redirect_url)
+
+    # 2. Decode and validate state parameter (JWT)
+    try:
+        payload = jwt.decode(state, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        business_id_str = payload.get("business_id")
+        state_platform = payload.get("platform")
+
+        if not business_id_str or state_platform != platform.lower():
+            raise jwt.InvalidTokenError("Invalid state payload structure.")
+        
+        business_id = UUID(business_id_str)
+    except jwt.ExpiredSignatureError:
+        err_msg = "OAuth state signature expired. Please request a new authorization link."
+        return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
+    except jwt.InvalidTokenError:
+        err_msg = "OAuth state authentication verification failed. Unauthorized callback."
+        return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
+
+    # 3. Instantiate platform-specific connector and trigger handshake/upsert
+    try:
+        connector = get_connector(platform)
+        await connector.connect(session=db, business_id=business_id, code=effective_code)
+        
+        # Connection succeeded: redirect back to frontend with success parameters
+        return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=success&platform={platform.lower()}")
+    except ConnectorError as e:
+        import traceback
+        print(f"[OAuth Callback Error] ConnectorError occurred: status_code={e.status_code}, message={e.message}", flush=True)
+        traceback.print_exc()
+        err_msg = f"Handshake failed: {e.message}"
+        return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
+    except Exception as e:
+        import traceback
+        print(f"[OAuth Callback Error] Unexpected exception: {str(e)}", flush=True)
+        traceback.print_exc()
+        err_msg = f"An unexpected error occurred: {str(e)}"
+        return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
 
 
 @router.post("/telegram/connect")
@@ -217,7 +217,7 @@ async def list_connectors(
         conn_map = {c.platform.lower(): c for c in connectors}
         
         supported_platforms = [
-            # {"platform": "instagram", "displayName": "Instagram"},
+            {"platform": "instagram", "displayName": "Instagram"},
             # {"platform": "discord", "displayName": "Discord"},
             {"platform": "telegram", "displayName": "Telegram"},
         ]

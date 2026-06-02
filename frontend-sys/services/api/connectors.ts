@@ -25,35 +25,35 @@ export const useConnectors = () => {
   });
 };
 
-// export const useConnectOAuth = () => {
-//   return useMutation({
-//     mutationFn: async (platform: PlatformType) => {
-//       const response = await fetch(`${API_BASE_URL}/connectors/oauth/url/${platform}`, {
-//         method: 'GET',
-//         headers: {
-//           'Content-Type': 'application/json',
-//         },
-//         credentials: 'include',
-//       });
-// 
-//       if (!response.ok) {
-//         const errData = await response.json().catch(() => ({}));
-//         throw new Error(errData.detail || `Failed to generate OAuth redirect link for ${platform}.`);
-//       }
-// 
-//       const result = await response.json();
-//       
-//       if (result.success && result.url) {
-//         // Redirect caller browser directly to the oauth handshake endpoint
-//         window.location.href = result.url;
-//       } else {
-//         throw new Error('Response did not return a valid redirection URL.');
-//       }
-//       
-//       return result;
-//     },
-//   });
-// };
+export const useConnectOAuth = () => {
+  return useMutation({
+    mutationFn: async (platform: PlatformType) => {
+      const response = await fetch(`${API_BASE_URL}/connectors/oauth/url/${platform}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || `Failed to generate OAuth redirect link for ${platform}.`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.url) {
+        // Redirect caller browser directly to the oauth handshake endpoint
+        window.location.href = result.url;
+      } else {
+        throw new Error('Response did not return a valid redirection URL.');
+      }
+      
+      return result;
+    },
+  });
+};
 
 export const useConnectTelegram = () => {
   const queryClient = useQueryClient();
