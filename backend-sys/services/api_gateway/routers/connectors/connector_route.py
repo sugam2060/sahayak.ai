@@ -152,7 +152,7 @@ async def oauth_callback(
         import traceback
         print(f"[OAuth Callback Error] ConnectorError occurred: status_code={e.status_code}, message={e.message}", flush=True)
         traceback.print_exc()
-        err_msg = f"Handshake failed: {e.message}"
+        err_msg = e.message
         return RedirectResponse(url=f"{FRONTEND_URL}/connectors?status=error&message={quote_plus(err_msg)}")
     except Exception as e:
         import traceback

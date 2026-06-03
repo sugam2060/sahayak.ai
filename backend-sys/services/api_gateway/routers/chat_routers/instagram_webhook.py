@@ -177,7 +177,7 @@ async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_pa
     if has_media:
         media_url = await process_instagram_media(messaging_event, str(connector.business_id))
 
-    logger.info(f"[Webhook] DM from {sender_id}: {text!r} (media: {media_url})")
+    # [Webhook] DM from {sender_id}: {text!r} (media: {media_url})
 
     await KafkaProducerPool.send_message("chat_service", {
         "org_id": str(connector.business_id),
@@ -199,7 +199,7 @@ async def _handle_change(connector: PlatformConnector, change: dict, raw_payload
     field = change.get("field")
     value = change.get("value", {})
 
-    logger.info(f"[Webhook] Change event: field={field}")
+    # [Webhook] Change event: field={field}
 
     await KafkaProducerPool.send_message("chat_service", {
         "org_id": str(connector.business_id),
@@ -236,12 +236,10 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
             logger.warning(f"[Webhook] Verify token mismatch: {token!r}")
             return HTMLResponse(content="<p>Verification token mismatch.</p>", status_code=403)
 
-        logger.info("[Webhook] Verification challenge accepted.")
         return PlainTextResponse(content=challenge, status_code=200)
 
     # --- POST: Incoming event from Meta ---
     raw_body = await request.body()
-
     # 1. Validate signature early
     signature = request.headers.get("X-Hub-Signature-256")
     if signature:
@@ -275,7 +273,7 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
             # O(1) query / caching lookup using entry_id (always the business account IG_ID)
             connector = await _load_connector_by_id(db, entry_id)
             if not connector:
-                logger.info(f"[Webhook] Entry {entry_id} not found in connectors. Dumping DM.")
+                logger.warning(f"[Webhook] Entry {entry_id} not found in connectors. Dumping DM.")
                 continue
 
             # Check message deduplication/idempotency via Redis
@@ -285,7 +283,6 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
                     redis_client = RedisPool.get_client()
                     is_new = await redis_client.set(f"webhook:processed:{mid}", "1", ex=86400, nx=True)
                     if not is_new:
-                        logger.info(f"[Webhook] Duplicate message {mid} ignored.")
                         continue
                 except Exception as e:
                     logger.error(f"[Webhook] Redis deduplication error: {e}")
@@ -314,7 +311,7 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
         for change in entry.get("changes", []):
             connector = await _load_connector_by_id(db, entry_id)
             if not connector:
-                logger.info(f"[Webhook] Change entry {entry_id} not found in connectors. Dumping.")
+                logger.warning(f"[Webhook] Change entry {entry_id} not found in connectors. Dumping.")
                 continue
 
             # Decrypt access token if encrypted

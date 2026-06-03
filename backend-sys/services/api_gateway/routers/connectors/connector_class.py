@@ -162,8 +162,8 @@ class InstagramConnector(BaseConnector):
 
         if not igba_id:
             raise ConnectorError(
-                "Failed to fetch Instagram Business Account ID from /me endpoint. "
-                "Cannot store connector without the correct platform_account_id."
+                "Instagram connector is in the testing phase and your account has not been invited/added as a tester yet. "
+                "Please contact the workspace administrator to be added as a registered tester."
             )
 
         if not username:
