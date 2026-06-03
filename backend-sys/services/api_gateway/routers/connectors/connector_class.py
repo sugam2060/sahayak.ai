@@ -161,7 +161,7 @@ class InstagramConnector(BaseConnector):
         #
         # The IGBA ID comes from GET graph.instagram.com/v21.0/me using the access token.
         profile = await self._fetch_profile(tokens["access_token"])
-        igba_id = profile.get("id")
+        igba_id = profile.get("user_id")
         username = profile.get("username")
 
         # Hard failure — if we can't get the real IGBA ID, storing the ASID would
@@ -274,15 +274,14 @@ class InstagramConnector(BaseConnector):
         Fetch Instagram Business Account profile via GET /me.
 
         Returns dict with:
-          - 'id'       → IGBA ID (used by Meta webhooks as entry.id / recipient.id)
-          - 'username' → human-readable account name
-
-        Returns empty dict on failure — caller is responsible for treating
-        a missing 'id' as a hard error (do not fall back to ASID silently).
+          - 'user_id'   → IGBA ID (the <IG_ID> used by Meta webhooks as entry.id / recipient.id)
+          - 'id'        → app-scoped ID (ASID) — do NOT use this as platform_account_id
+          - 'username'  → human-readable account name
         """
         url = "https://graph.instagram.com/v21.0/me"
         params = {
-            "fields": "id,username,account_type",
+            # 'id' alone returns the ASID — must explicitly request 'user_id' for the IGBA ID
+            "fields": "id,user_id,username,account_type",
             "access_token": access_token,
         }
 
@@ -298,9 +297,7 @@ class InstagramConnector(BaseConnector):
                     f"{response.status_code}: {response.text}"
                 )
             except httpx.HTTPError as e:
-                logger.warning(
-                    f"[InstagramConnector] GET /me network error: {str(e)}"
-                )
+                logger.warning(f"[InstagramConnector] GET /me network error: {str(e)}")
 
         return {}
 
