@@ -189,7 +189,7 @@ async def send_chat_reply_endpoint(
                 detail=f"No active connector found for platform '{req.platform}' and organization ID '{org_id}'."
             )
             
-        bot_token = connector.tokens.get("bot_token")
+        bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
         if not bot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -279,7 +279,7 @@ async def send_chat_reply_image(
                 detail=f"No active connector found for platform '{platform}' and organization ID '{org_id}'."
             )
             
-        bot_token = connector.tokens.get("bot_token")
+        bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
         if not bot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
