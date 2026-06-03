@@ -180,3 +180,33 @@ def decrypt_token(token: str, secret: str) -> tuple[str, str]:
     org_id, order_id = plain.split(":", 1)
     return org_id, order_id
 
+
+import os
+import hashlib
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+def encrypt_access_token(token: str, secret_key: str) -> dict:
+    """Encrypt access token using AES-256-GCM. Derives a 32-byte key from secret_key."""
+    key = hashlib.sha256(secret_key.encode("utf-8")).digest()
+    aesgcm = AESGCM(key)
+    iv = os.urandom(12)
+    ciphertext_with_tag = aesgcm.encrypt(iv, token.encode("utf-8"), None)
+    ciphertext = ciphertext_with_tag[:-16]
+    tag = ciphertext_with_tag[-16:]
+    return {
+        "token_iv": iv.hex(),
+        "token_ciphertext": ciphertext.hex(),
+        "token_auth_tag": tag.hex()
+    }
+
+def decrypt_access_token(iv_hex: str, ciphertext_hex: str, tag_hex: str, secret_key: str) -> str:
+    """Decrypt access token using AES-256-GCM."""
+    key = hashlib.sha256(secret_key.encode("utf-8")).digest()
+    aesgcm = AESGCM(key)
+    iv = bytes.fromhex(iv_hex)
+    ciphertext = bytes.fromhex(ciphertext_hex)
+    tag = bytes.fromhex(tag_hex)
+    decrypted = aesgcm.decrypt(iv, ciphertext + tag, None)
+    return decrypted.decode("utf-8")
+
+

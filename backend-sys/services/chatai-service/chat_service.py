@@ -38,7 +38,8 @@ async def route_outbound_reply(
     chat_id: Union[int, str],
     sender_id: Union[int, str],
     text: str,
-    image_url: str = None
+    image_url: str = None,
+    ig_account_id: str = None
 ):
     """
     Produce the outbound reply message event and send it to the kafka chat_service topic.
@@ -52,7 +53,8 @@ async def route_outbound_reply(
         "chat_id": chat_id,
         "sender_id": sender_id,
         "text": text,
-        "image_url": image_url
+        "image_url": image_url,
+        "ig_account_id": ig_account_id
     }
     
     logger.info(f"Producing outbound reply event for sender_id: {sender_id} to chat_service topic.")
@@ -105,15 +107,15 @@ async def handle_chat_event(event: dict):
             # Instagram inbound DM event — text is pre-extracted by the webhook handler
             sender_id = event.get("sender_id")
             text = event.get("message_text", "")
+            image_url = event.get("image_url")
             if not sender_id:
                 logger.warning(f"Instagram DM event missing sender_id: {event}")
                 return
-            if not text:
-                logger.info("Instagram DM event has no text. Skipping.")
+            if not text and not image_url:
+                logger.info("Instagram DM event has no text and no image_url. Skipping.")
                 return
             # Instagram does not have a separate chat_id; use sender_id as identifier
             chat_id = sender_id
-            image_url = None
             
             # Fetch Instagram user profile details from the Graph API
             sender_name = "Instagram User"
@@ -121,9 +123,7 @@ async def handle_chat_event(event: dict):
             profile_pic = None
             if bot_token:
                 try:
-                    # CRITICAL: Must use graph.instagram.com, NOT graph.facebook.com
-                    # Also requires an Instagram User Access Token, not a Page Access Token
-                    url = f"https://graph.instagram.com/v21.0/{sender_id}"
+                    url = f"https://graph.instagram.com/v25.0/{sender_id}"
                     params = {
                         "fields": "name,username,profile_pic",
                         "access_token": bot_token  # Must be an IG User Access Token here
@@ -311,7 +311,8 @@ async def handle_chat_event(event: dict):
                 logger.error(f"Network error sending message to Telegram user: {str(e)}")
         elif platform == "instagram":
             # Send reply via Instagram Graph API
-            instagram_endpoint = "https://graph.instagram.com/v21.0/me/messages"
+            ig_account_id = event.get("ig_account_id") or "me"
+            instagram_endpoint = f"https://graph.instagram.com/v25.0/{ig_account_id}/messages"
             try:
                 async with httpx.AsyncClient() as client:
                     payload = {

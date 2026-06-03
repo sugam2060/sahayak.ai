@@ -189,7 +189,23 @@ async def send_chat_reply_endpoint(
                 detail=f"No active connector found for platform '{req.platform}' and organization ID '{org_id}'."
             )
             
-        bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
+        # Decrypt token if encrypted
+        bot_token = None
+        if connector.tokens.get("access_token_encrypted"):
+            from shared.utils import decrypt_access_token
+            from shared.config import JWT_SECRET
+            try:
+                bot_token = decrypt_access_token(
+                    connector.tokens["token_iv"],
+                    connector.tokens["token_ciphertext"],
+                    connector.tokens["token_auth_tag"],
+                    str(JWT_SECRET)
+                )
+            except Exception as e:
+                logger.error(f"Failed to decrypt Instagram access token: {e}")
+        else:
+            bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
+
         if not bot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -207,7 +223,8 @@ async def send_chat_reply_endpoint(
             platform=req.platform.lower(),
             chat_id=chat_id,
             sender_id=req.sender_id,
-            text=req.text
+            text=req.text,
+            ig_account_id=connector.platform_account_id if req.platform.lower() == "instagram" else None
         )
         
         return {"success": True, "message": "Reply event successfully sent to Kafka."}
@@ -279,7 +296,23 @@ async def send_chat_reply_image(
                 detail=f"No active connector found for platform '{platform}' and organization ID '{org_id}'."
             )
             
-        bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
+        # Decrypt token if encrypted
+        bot_token = None
+        if connector.tokens.get("access_token_encrypted"):
+            from shared.utils import decrypt_access_token
+            from shared.config import JWT_SECRET
+            try:
+                bot_token = decrypt_access_token(
+                    connector.tokens["token_iv"],
+                    connector.tokens["token_ciphertext"],
+                    connector.tokens["token_auth_tag"],
+                    str(JWT_SECRET)
+                )
+            except Exception as e:
+                logger.error(f"Failed to decrypt Instagram access token: {e}")
+        else:
+            bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
+
         if not bot_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -327,7 +360,8 @@ async def send_chat_reply_image(
                 chat_id=chat_id,
                 sender_id=sender_id,
                 text="",
-                image_url=image_url
+                image_url=image_url,
+                ig_account_id=connector.platform_account_id if platform.lower() == "instagram" else None
             )
             
         return {"success": True, "image_urls": uploaded_urls, "image_url": uploaded_urls[0]}

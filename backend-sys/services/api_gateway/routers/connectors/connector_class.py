@@ -22,7 +22,10 @@ from shared.config import (
     INSTAGRAM_REDIRECT_URI,
     TELEGRAM_API_BASE_URL,
     BACKEND_URL,
+    JWT_SECRET,
 )
+from shared.utils import encrypt_access_token, decrypt_access_token
+
 
 class ConnectorError(Exception):
     """Custom exception raised during connector handshake or validation operations."""
@@ -150,22 +153,13 @@ class InstagramConnector(BaseConnector):
 
         # Step 2: Exchange short-lived → long-lived token (~60 days)
         tokens = await self._exchange_long_lived_token(short_token)
+        long_lived_token = tokens["access_token"]
 
         # Step 3: Fetch the real Instagram Business Account ID.
-        #
-        # CRITICAL: The token exchange returns an app-scoped user ID (ASID), which is
-        # app-specific and NOT what Meta sends as entry.id / recipient.id in webhooks.
-        # Webhooks always use the Instagram Business Account ID (IGBA ID).
-        # We MUST store the IGBA ID as platform_account_id or connector lookup will
-        # always fail and all incoming DMs will be dumped.
-        #
-        # The IGBA ID comes from GET graph.instagram.com/v21.0/me using the access token.
-        profile = await self._fetch_profile(tokens["access_token"])
+        profile = await self._fetch_profile(long_lived_token)
         igba_id = profile.get("user_id")
         username = profile.get("username")
 
-        # Hard failure — if we can't get the real IGBA ID, storing the ASID would
-        # silently break all webhook matching. Surface this immediately at connect time.
         if not igba_id:
             raise ConnectorError(
                 "Failed to fetch Instagram Business Account ID from /me endpoint. "
@@ -184,12 +178,23 @@ class InstagramConnector(BaseConnector):
             f"username: {username} (ASID was: {app_scoped_user_id})"
         )
 
-        # Preserve both IDs in the stored token blob.
-        # - access_token  → used for all Graph API calls (send DMs, fetch user profiles)
-        # - user_id       → IGBA ID, matches webhook recipient.id
-        # - app_scoped_user_id → ASID from OAuth, kept for reference/debugging
-        tokens["user_id"] = igba_id
-        tokens["app_scoped_user_id"] = app_scoped_user_id
+        # Step 4: Programmatically subscribe the Instagram Business Account to our webhooks
+        await self._subscribe_webhook(igba_id, long_lived_token)
+
+        # Encrypt the long-lived access token before database storage
+        encrypted = encrypt_access_token(long_lived_token, str(JWT_SECRET))
+        
+        # Save token configuration fields
+        token_payload = {
+            "access_token_encrypted": True,
+            "token_iv": encrypted["token_iv"],
+            "token_ciphertext": encrypted["token_ciphertext"],
+            "token_auth_tag": encrypted["token_auth_tag"],
+            "user_id": igba_id,
+            "app_scoped_user_id": app_scoped_user_id,
+        }
+        if "expires_at" in tokens:
+            token_payload["expires_at"] = tokens["expires_at"]
 
         metadata = {
             "account_type": "BUSINESS",
@@ -204,7 +209,7 @@ class InstagramConnector(BaseConnector):
             platform="instagram",
             platform_account_id=igba_id,       # ← IGBA ID, matches webhook recipient.id
             platform_account_name=username,
-            tokens=tokens,
+            tokens=token_payload,
             platform_metadata=metadata,
         )
         logger.info(
@@ -272,15 +277,9 @@ class InstagramConnector(BaseConnector):
     async def _fetch_profile(self, access_token: str) -> dict:
         """
         Fetch Instagram Business Account profile via GET /me.
-
-        Returns dict with:
-          - 'user_id'   → IGBA ID (the <IG_ID> used by Meta webhooks as entry.id / recipient.id)
-          - 'id'        → app-scoped ID (ASID) — do NOT use this as platform_account_id
-          - 'username'  → human-readable account name
         """
-        url = "https://graph.instagram.com/v21.0/me"
+        url = "https://graph.instagram.com/v25.0/me"
         params = {
-            # 'id' alone returns the ASID — must explicitly request 'user_id' for the IGBA ID
             "fields": "id,user_id,username,account_type",
             "access_token": access_token,
         }
@@ -300,6 +299,53 @@ class InstagramConnector(BaseConnector):
                 logger.warning(f"[InstagramConnector] GET /me network error: {str(e)}")
 
         return {}
+
+    async def _subscribe_webhook(self, igba_id: str, access_token: str) -> None:
+        """
+        Programmatically subscribe the Instagram Business Account to the App's webhooks.
+        """
+        url = f"https://graph.instagram.com/v25.0/{igba_id}/subscribed_apps"
+        params = {
+            "subscribed_fields": "messages,messaging_seen,message_reactions,messaging_postbacks,messaging_referral,message_echoes,comments,mentions",
+            "access_token": access_token
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, params=params, timeout=15.0)
+                if response.status_code == 200:
+                    logger.info(f"[InstagramConnector] Webhook subscribed successfully for IGBA {igba_id}")
+                    return
+                logger.warning(
+                    f"[InstagramConnector] Webhook subscription failed for IGBA {igba_id}. "
+                    f"Status: {response.status_code}, Response: {response.text}"
+                )
+            except Exception as e:
+                logger.error(f"[InstagramConnector] Error during webhook subscription: {str(e)}", exc_info=True)
+
+    async def disconnect(self, access_token: str, igba_id: str) -> None:
+        """
+        Programmatically unsubscribe the Instagram Business Account from the App's webhooks.
+        """
+        url = f"https://graph.instagram.com/v25.0/{igba_id}/subscribed_apps"
+        params = {
+            "access_token": access_token
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.request("DELETE", url, params=params, timeout=15.0)
+                if response.status_code == 200:
+                    logger.info(f"[InstagramConnector] Webhook unsubscribed successfully for IGBA {igba_id}")
+                    return
+                logger.warning(
+                    f"[InstagramConnector] Webhook unsubscription failed for IGBA {igba_id}. "
+                    f"Status: {response.status_code}, Response: {response.text}"
+                )
+            except Exception as e:
+                logger.error(f"[InstagramConnector] Error during webhook unsubscription: {str(e)}", exc_info=True)
+
+
+
 
 
 class TelegramConnector:

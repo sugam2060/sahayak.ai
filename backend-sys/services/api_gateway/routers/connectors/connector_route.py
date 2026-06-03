@@ -282,6 +282,26 @@ async def disconnect_connector(
             if bot_token:
                 tg_connector = TelegramConnector()
                 await tg_connector.disconnect(bot_token)
+        elif platform.lower() == "instagram":
+            tokens = connector.tokens or {}
+            access_token = None
+            if tokens.get("access_token_encrypted"):
+                from shared.utils import decrypt_access_token
+                try:
+                    access_token = decrypt_access_token(
+                        tokens["token_iv"],
+                        tokens["token_ciphertext"],
+                        tokens["token_auth_tag"],
+                        str(JWT_SECRET)
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to decrypt Instagram access token for disconnect: {e}")
+            else:
+                access_token = tokens.get("access_token")
+
+            if access_token:
+                inst_connector = InstagramConnector()
+                await inst_connector.disconnect(access_token, connector.platform_account_id)
                 
         await db.delete(connector)
         await db.commit()
