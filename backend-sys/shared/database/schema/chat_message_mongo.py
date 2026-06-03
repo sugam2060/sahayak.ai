@@ -22,6 +22,7 @@ class ConversationUser(BaseModel):
     sender_id: int = Field(..., description="Unique ID of the sender on this platform")
     sender_name: str = Field(..., description="Display name of the sender")
     sender_username: Optional[str] = Field(None, description="Username of the sender")
+    profile_pic: Optional[str] = Field(None, description="Profile picture URL of the sender")
 
 class ConversationMongo(BaseModel):
     organization_id: str = Field(..., description="References PostgreSQL Organization ID")

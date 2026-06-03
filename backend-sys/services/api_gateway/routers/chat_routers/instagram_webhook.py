@@ -129,6 +129,7 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
 
     try:
         payload = json.loads(raw_body)
+        logger.info(payload)
     except json.JSONDecodeError:
         return Response(status_code=400)
 

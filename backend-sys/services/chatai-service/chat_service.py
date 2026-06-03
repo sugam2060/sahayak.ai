@@ -113,8 +113,43 @@ async def handle_chat_event(event: dict):
             # Instagram does not have a separate chat_id; use sender_id as identifier
             chat_id = sender_id
             image_url = None
+            
+            # Fetch Instagram user profile details from the Graph API
             sender_name = "Instagram User"
             sender_username = None
+            profile_pic = None
+            if bot_token:
+                try:
+                    # CRITICAL: Must use graph.instagram.com, NOT graph.facebook.com
+                    # Also requires an Instagram User Access Token, not a Page Access Token
+                    url = f"https://graph.instagram.com/v21.0/{sender_id}"
+                    params = {
+                        "fields": "name,username,profile_pic",
+                        "access_token": bot_token  # Must be an IG User Access Token here
+                    }
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(url, params=params, timeout=5.0)
+                        if resp.status_code == 200:
+                            profile_data = resp.json()
+                            # name can be null if user hasn't set one — fall back to username
+                            sender_name = (
+                                profile_data.get("name")
+                                or profile_data.get("username")
+                                or "Instagram User"
+                            )
+                            sender_username = profile_data.get("username")
+                            profile_pic = profile_data.get("profile_pic")
+                            logger.info(
+                                f"Fetched Instagram profile for {sender_id}: "
+                                f"name={sender_name}, username={sender_username}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Failed to fetch Instagram user profile: "
+                                f"{resp.status_code} - {resp.text}"
+                            )
+                except Exception as e:
+                    logger.error(f"Error fetching Instagram user profile details: {e}", exc_info=True)
         else:
             logger.warning(f"Unknown platform '{platform}' in inbound event. Skipping.")
             return
@@ -145,7 +180,8 @@ async def handle_chat_event(event: dict):
         user_data = {
             "sender_id": sender_id,
             "sender_name": sender_name,
-            "sender_username": sender_username
+            "sender_username": sender_username,
+            "profile_pic": profile_pic if platform == "instagram" else None
         }
         
         now = datetime.now(timezone.utc)
@@ -157,11 +193,11 @@ async def handle_chat_event(event: dict):
                 "organization_id": org_id,
                 "bot_name": bot_name,
                 "chat_id": chat_id,
-                "user": user_data,
                 "ai_assigned": False,
                 "created_at": now
             },
             "$set": {
+                "user": user_data,
                 "updated_at": now
             },
             "$push": {
