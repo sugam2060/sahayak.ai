@@ -306,7 +306,7 @@ class InstagramConnector(BaseConnector):
         """
         url = f"https://graph.instagram.com/v25.0/{igba_id}/subscribed_apps"
         params = {
-            "subscribed_fields": "messages,messaging_seen,message_reactions,messaging_postbacks,messaging_referral,message_echoes,comments,mentions",
+            "subscribed_fields": "messages,messaging_seen,message_reactions,messaging_postbacks,messaging_referral,comments,mentions",
             "access_token": access_token
         }
         

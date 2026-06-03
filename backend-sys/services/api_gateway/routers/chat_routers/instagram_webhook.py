@@ -272,12 +272,10 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
         
         # --- DM events ---
         for messaging_event in entry.get("messaging", []):
-            recipient_id = str(messaging_event.get("recipient", {}).get("id", ""))
-            
-            # O(1) query / caching lookup
-            connector = await _load_connector_by_id(db, recipient_id)
+            # O(1) query / caching lookup using entry_id (always the business account IG_ID)
+            connector = await _load_connector_by_id(db, entry_id)
             if not connector:
-                logger.info(f"[Webhook] Recipient {recipient_id} not found in connectors. Dumping DM.")
+                logger.info(f"[Webhook] Entry {entry_id} not found in connectors. Dumping DM.")
                 continue
 
             # Check message deduplication/idempotency via Redis
