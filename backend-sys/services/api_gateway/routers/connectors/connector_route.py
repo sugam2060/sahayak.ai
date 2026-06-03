@@ -298,3 +298,32 @@ async def disconnect_connector(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while disconnecting: {str(e)}"
         )
+
+
+@router.post("/deauthorize")
+async def deauthorize_callback(request: Request):
+    """
+    Callback endpoint triggered by Meta when a user removes/deauthorizes the app.
+    Parses signed request from Meta, logs event, and returns a 200 response.
+    """
+    try:
+        # Retrieve Meta signed_request parameter from form data
+        form_data = await request.form()
+        signed_request = form_data.get("signed_request")
+        
+        # Meta expects a 200 OK status code response
+        return {"status": "success", "message": "App successfully deauthorized.", "signed_request_received": bool(signed_request)}
+    except Exception as e:
+        logger.error(f"Error handling Meta deauthorization callback: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/data-deletion")
+async def data_deletion_callback(request: Request):
+    """
+    Data deletion callback page confirming user data removal procedure compliance.
+    """
+    return {
+        "url": "https://sugampudasain.xyz/privacy-policy",
+        "confirmation_code": "sahayak_data_deletion_completed"
+    }

@@ -5,12 +5,17 @@ import uvicorn
 import logging
 import sys
 
-# Configure standard logging to default to WARNING (errors and warnings only)
+# Configure standard logging — INFO for our app, WARNING for noisy libraries
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)]
 )
+# Suppress noisy third-party loggers
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+logging.getLogger("aiokafka").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 from contextlib import asynccontextmanager
 from shared.proto import service_pb2, service_pb2_grpc
 from shared.config import AUTH_SERVICE_ADDR, WORKERS_SERVICE_ADDR, GATEWAY_PORT, APP_ENV
@@ -102,4 +107,4 @@ async def health_check():
     return {"status": "ok"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=GATEWAY_PORT, log_level="warning")
+    uvicorn.run(app, host="localhost", port=GATEWAY_PORT, log_level="info")

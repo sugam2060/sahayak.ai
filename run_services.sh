@@ -13,7 +13,7 @@ echo "=================================================="
 
 # 1. Run frontend-sys in dev mode
 echo "--> Starting frontend-sys (Next.js)..."
-(cd frontend-sys && npm start) &
+(cd frontend-sys && npm run dev) &
 
 # 2. Run backend auth_service
 echo "--> Starting backend auth_service (gRPC)..."
