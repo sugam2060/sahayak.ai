@@ -1,5 +1,3 @@
-import hmac
-import hashlib
 import logging
 import json
 from fastapi import APIRouter, Request, Depends, Response
@@ -9,7 +7,7 @@ from sqlalchemy import select
 
 from shared.database.engine import SessionLocal
 from shared.database.schema.platform_connectors import PlatformConnector
-from shared.config import INSTAGRAM_VERIFY_TOKEN, INSTAGRAM_APP_SECRET
+from shared.config import INSTAGRAM_VERIFY_TOKEN
 from shared.kafka_producer import KafkaProducerPool
 
 logger = logging.getLogger("api_gateway.instagram_webhook")
@@ -22,151 +20,83 @@ async def get_db():
 
 
 # ---------------------------------------------------------------------------
-# Signature validation
+# Connector lookup
 # ---------------------------------------------------------------------------
 
-def _verify_signature(raw_body: bytes, signature_header: str) -> bool:
-    """
-    Validates Meta's X-Hub-Signature-256 header.
-    Computed as HMAC-SHA256 of the raw request body using INSTAGRAM_APP_SECRET.
-    Returns False (not raises) so the caller can log and return 403 cleanly.
-    """
-    if not signature_header or not signature_header.startswith("sha256="):
-        logger.warning("[InstagramWebhook] Missing or malformed X-Hub-Signature-256 header.")
-        return False
-
-    expected = signature_header[len("sha256="):]
-
-    computed = hmac.HMAC(
-        key=INSTAGRAM_APP_SECRET.encode("utf-8"),
-        msg=raw_body,
-        digestmod=hashlib.sha256
-    ).hexdigest()
-
-    valid = hmac.compare_digest(computed, expected)
-    if not valid:
-        logger.warning(
-            "[InstagramWebhook] Signature mismatch. "
-            f"expected={expected[:16]}... computed={computed[:16]}..."
-        )
-    return valid
-
-
-# ---------------------------------------------------------------------------
-# Connector lookup (cached per request — avoids N queries per entry)
-# ---------------------------------------------------------------------------
-
-async def _get_connector_map(db: AsyncSession) -> dict[str, PlatformConnector]:
-    """Returns a dict of { platform_account_id -> PlatformConnector } for all Instagram connectors."""
-    stmt = select(PlatformConnector).where(PlatformConnector.platform == "instagram")
+async def _load_connectors(db: AsyncSession) -> list[PlatformConnector]:
+    """Load all active Instagram connectors from DB."""
+    stmt = select(PlatformConnector).where(
+        PlatformConnector.platform == "instagram",
+        PlatformConnector.status == "active"
+    )
     result = await db.execute(stmt)
-    return {str(c.platform_account_id): c for c in result.scalars().all()}
+    return list(result.scalars().all())
+
+
+def _find_connector(
+    connectors: list[PlatformConnector],
+    recipient_id: str
+) -> PlatformConnector | None:
+    """Find a connector whose platform_account_id matches the recipient_id."""
+    for c in connectors:
+        if str(c.platform_account_id) == recipient_id:
+            return c
+    return None
 
 
 # ---------------------------------------------------------------------------
 # Event handlers
 # ---------------------------------------------------------------------------
 
-async def _handle_messaging(
-    connector: PlatformConnector,
-    entry: dict,
-    messaging_event: dict,
-    raw_payload: dict
-) -> None:
-    """
-    Handles DM events (instagram_business_manage_messages).
-
-    Messaging event shape:
-    {
-      "sender":    { "id": "<sender-igsid>" },
-      "recipient": { "id": "<your-ig-account-id>" },
-      "timestamp": 1234567890,
-      "message":   { "mid": "...", "text": "Hello!" }
-                OR "read":    { "mid": "..." }
-                OR "delivery":{ "mids": [...], "watermark": ... }
-    }
-    """
+async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_payload: dict) -> None:
+    """Process a single DM messaging event and dispatch to Kafka."""
     sender_id = messaging_event.get("sender", {}).get("id")
-    message   = messaging_event.get("message", {})
-    message_text = message.get("text", "")
+    message = messaging_event.get("message", {})
+    text = message.get("text", "")
     mid = message.get("mid", "")
 
-    # Ignore echo events (messages sent by the business itself)
+    # Skip echo (bot's own messages), read receipts, and delivery confirmations
     if message.get("is_echo"):
-        logger.debug(f"[InstagramWebhook] Skipping echo message mid={mid}")
         return
-
-    # Ignore read receipts and delivery confirmations — not actionable
     if "read" in messaging_event or "delivery" in messaging_event:
-        logger.debug(f"[InstagramWebhook] Skipping read/delivery event for account={entry.get('id')}")
+        return
+    if not sender_id or not text:
         return
 
-    logger.info(
-        f"[InstagramWebhook] DM event | "
-        f"account={entry.get('id')} sender={sender_id} mid={mid} text={message_text!r}"
-    )
+    logger.info(f"[Webhook] DM from {sender_id}: {text!r}")
 
-    kafka_event = {
+    await KafkaProducerPool.send_message("chat_service", {
         "org_id": str(connector.business_id),
-        "bot_name": connector.platform_account_name or "InstagramBusiness",
+        "bot_name": connector.platform_account_name or "Instagram",
         "bot_token": connector.tokens.get("access_token", ""),
         "platform": "instagram",
         "event_type": "dm",
         "direction": "inbound",
         "sender_id": sender_id,
         "mid": mid,
-        "message_text": message_text,
+        "message_text": text,
         "payload": raw_payload,
-    }
-    await KafkaProducerPool.send_message("chat_service", kafka_event)
-    logger.info(f"[InstagramWebhook] DM event dispatched to Kafka | sender={sender_id} text={message_text!r}")
+    })
 
 
-async def _handle_change(
-    connector: PlatformConnector,
-    entry: dict,
-    change: dict,
-    raw_payload: dict
-) -> None:
-    """
-    Handles comment / mention / story_mention change events (instagram_business_manage_comments).
-
-    Change shape:
-    {
-      "field": "comments",
-      "value": {
-        "id": "<comment-id>",
-        "text": "Great post!",
-        "from": { "id": "...", "username": "..." },
-        "media": { "id": "...", "media_product_type": "POST" }
-      }
-    }
-    """
+async def _handle_change(connector: PlatformConnector, change: dict, raw_payload: dict) -> None:
+    """Process a single change event (comments, mentions) and dispatch to Kafka."""
     field = change.get("field")
     value = change.get("value", {})
-    comment_id = value.get("id")
-    comment_text = value.get("text", "")
-    from_user = value.get("from", {})
 
-    logger.info(
-        f"[InstagramWebhook] Change event | "
-        f"account={entry.get('id')} field={field} comment_id={comment_id} "
-        f"from={from_user.get('username')} text={comment_text!r}"
-    )
+    logger.info(f"[Webhook] Change event: field={field}")
 
-    kafka_event = {
+    await KafkaProducerPool.send_message("chat_service", {
         "org_id": str(connector.business_id),
-        "bot_name": connector.platform_account_name or "InstagramBusiness",
+        "bot_name": connector.platform_account_name or "Instagram",
         "bot_token": connector.tokens.get("access_token", ""),
         "platform": "instagram",
-        "event_type": field,          # "comments", "mentions", "story_mentions", etc.
+        "event_type": field,
         "direction": "inbound",
-        "from_user": from_user,
-        "comment_id": comment_id,
+        "from_user": value.get("from", {}),
+        "comment_id": value.get("id"),
         "payload": raw_payload,
-    }
-    await KafkaProducerPool.send_message("chat_service", kafka_event)
-    logger.info(f"[InstagramWebhook] Change event dispatched to Kafka | field={field} comment_id={comment_id}")
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -174,108 +104,80 @@ async def _handle_change(
 # ---------------------------------------------------------------------------
 
 @router.api_route("/instagram", methods=["GET", "POST"])
-async def instagram_webhook(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    # -----------------------------------------------------------------------
-    # GET — Meta webhook verification challenge
-    # -----------------------------------------------------------------------
+async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+
+    # --- GET: Meta webhook verification challenge ---
     if request.method == "GET":
-        params          = request.query_params
-        hub_mode        = params.get("hub.mode")
-        hub_challenge   = params.get("hub.challenge")
-        hub_verify_token = params.get("hub.verify_token")
+        params = request.query_params
+        mode = params.get("hub.mode")
+        challenge = params.get("hub.challenge")
+        token = params.get("hub.verify_token")
 
-        if not hub_challenge:
+        if not challenge:
             return HTMLResponse(content="<p>Webhook is live.</p>", status_code=200)
-
-        if hub_mode != "subscribe":
-            logger.warning(f"[InstagramWebhook] Unexpected hub.mode: {hub_mode}")
+        if mode != "subscribe":
             return HTMLResponse(content="<p>Invalid hub.mode.</p>", status_code=400)
-
-        if hub_verify_token != INSTAGRAM_VERIFY_TOKEN:
-            logger.warning(
-                f"[InstagramWebhook] Verify token mismatch. received={hub_verify_token!r}"
-            )
+        if token != INSTAGRAM_VERIFY_TOKEN:
+            logger.warning(f"[Webhook] Verify token mismatch: {token!r}")
             return HTMLResponse(content="<p>Verification token mismatch.</p>", status_code=403)
 
-        logger.info("[InstagramWebhook] Webhook verified successfully.")
-        return PlainTextResponse(content=hub_challenge, status_code=200)
+        logger.info("[Webhook] Verification challenge accepted.")
+        return PlainTextResponse(content=challenge, status_code=200)
 
-    # -----------------------------------------------------------------------
-    # POST — Incoming event payload
-    # -----------------------------------------------------------------------
-    # 1. Read raw body first — required for HMAC validation
+    # --- POST: Incoming event from Meta ---
     raw_body = await request.body()
-    
-    # Debug log the incoming request
-    headers_dict = dict(request.headers)
-    logger.info(f"[InstagramWebhook] Incoming request headers: {json.dumps(headers_dict)}")
-    try:
-        body_str = raw_body.decode("utf-8")
-        logger.info(f"[InstagramWebhook] Raw request body: {body_str}")
-    except Exception as e:
-        logger.info(f"[InstagramWebhook] Raw request body (bytes): {raw_body}")
 
-    # 2. Validate X-Hub-Signature-256 — reject anything that doesn't come from Meta
-    signature = request.headers.get("X-Hub-Signature-256", "")
-    if not _verify_signature(raw_body, signature):
-        logger.warning("[InstagramWebhook] Rejected POST — invalid signature.")
-        return Response(status_code=403)
-
-    # 3. Parse JSON
     try:
         payload = json.loads(raw_body)
-    except json.JSONDecodeError as e:
-        logger.error(f"[InstagramWebhook] Failed to parse JSON payload: {e}")
+    except json.JSONDecodeError:
         return Response(status_code=400)
 
-    logger.debug(f"[InstagramWebhook] Payload received:\n{json.dumps(payload, indent=2)}")
-
-    # 4. Validate object type
+    # Only process Instagram events
     if payload.get("object") != "instagram":
-        logger.warning(f"[InstagramWebhook] Unexpected object type: {payload.get('object')}")
-        return Response(status_code=200)  # Return 200 anyway — Meta will retry on non-200
+        return Response(status_code=200)
 
-    # 5. Load all Instagram connectors in one query
+    # Load all Instagram connectors once
     try:
-        connector_map = await _get_connector_map(db)
+        connectors = await _load_connectors(db)
     except Exception as e:
-        logger.error(f"[InstagramWebhook] DB error loading connectors: {e}", exc_info=True)
-        return Response(status_code=200)  # Don't return 5xx — Meta would retry indefinitely
+        logger.error(f"[Webhook] DB error: {e}", exc_info=True)
+        return Response(status_code=200)
 
-    # 6. Route each entry to the correct connector
-    entries = payload.get("entry", [])
-    logger.info(f"[InstagramWebhook] Processing {len(entries)} entries.")
+    if not connectors:
+        logger.warning("[Webhook] No active Instagram connectors in DB. Dumping event.")
+        return Response(status_code=200)
 
-    for entry in entries:
-        account_id = str(entry.get("id", ""))
-        connector  = connector_map.get(account_id)
+    # Process each entry
+    for entry in payload.get("entry", []):
 
-        if not connector:
-            logger.warning(f"[InstagramWebhook] No connector found for account_id={account_id} — skipping entry.")
-            continue
-
-        # DM events
+        # --- DM events ---
         for messaging_event in entry.get("messaging", []):
-            try:
-                await _handle_messaging(connector, entry, messaging_event, payload)
-            except Exception as e:
-                logger.error(
-                    f"[InstagramWebhook] Error handling messaging event for account={account_id}: {e}",
-                    exc_info=True
-                )
+            recipient_id = str(messaging_event.get("recipient", {}).get("id", ""))
+            connector = _find_connector(connectors, recipient_id)
 
-        # Comment / mention events
+            if not connector:
+                logger.info(f"[Webhook] Recipient {recipient_id} not found in connectors. Dumping DM.")
+                continue
+
+            try:
+                await _handle_dm(connector, messaging_event, payload)
+            except Exception as e:
+                logger.error(f"[Webhook] Error processing DM: {e}", exc_info=True)
+
+        # --- Change events (comments, mentions) ---
         for change in entry.get("changes", []):
-            try:
-                await _handle_change(connector, entry, change, payload)
-            except Exception as e:
-                logger.error(
-                    f"[InstagramWebhook] Error handling change event for account={account_id}: {e}",
-                    exc_info=True
-                )
+            # For change events, use entry.id as the account identifier
+            entry_id = str(entry.get("id", ""))
+            connector = _find_connector(connectors, entry_id)
 
-    # Meta requires 200 within 20s — always return it even on partial failures
+            if not connector:
+                # Fallback: use first available connector for change events
+                connector = connectors[0]
+
+            try:
+                await _handle_change(connector, change, payload)
+            except Exception as e:
+                logger.error(f"[Webhook] Error processing change event: {e}", exc_info=True)
+
+    # Always return 200 — Meta retries on non-200
     return Response(status_code=200)

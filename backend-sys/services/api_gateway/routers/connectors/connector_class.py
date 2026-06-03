@@ -124,11 +124,11 @@ class InstagramConnector(BaseConnector):
         # 1. Exchange code for short-lived token — response includes user_id directly
         short_tokens = await self._exchange_code(code)
         short_token = short_tokens.get("access_token")
-        platform_account_id = str(short_tokens.get("user_id", ""))
+        app_scoped_user_id = str(short_tokens.get("user_id", ""))
         
-        logger.info(f"[InstagramConnector] Short-lived token exchanged successfully. platform_account_id: {platform_account_id}")
+        logger.info(f"[InstagramConnector] Short-lived token exchanged successfully. app_scoped_user_id: {app_scoped_user_id}")
 
-        if not short_token or not platform_account_id:
+        if not short_token or not app_scoped_user_id:
             logger.error("[InstagramConnector] Access token or user ID missing from short token exchange response.")
             raise ConnectorError("Failed to retrieve access token or user ID from Instagram response.")
 
@@ -136,17 +136,25 @@ class InstagramConnector(BaseConnector):
         logger.info("[InstagramConnector] Attempting long-lived token exchange...")
         tokens = await self._exchange_long_lived_token(short_token)
 
-        # Preserve user_id in stored tokens for future API calls
-        tokens["user_id"] = platform_account_id
+        # 3. Fetch the Instagram Business Account ID (IGBA ID) and username from the Graph API.
+        #    The token exchange returns an app-scoped user_id, but Meta webhooks use the
+        #    IGBA ID in entry.id. We MUST store the IGBA ID as platform_account_id
+        #    so the webhook can match incoming events to this connector.
+        logger.info(f"[InstagramConnector] Fetching IGBA ID and username via GET /me ...")
+        profile = await self._fetch_profile(tokens["access_token"])
+        igba_id = profile.get("id") or app_scoped_user_id
+        username = profile.get("username") or app_scoped_user_id
 
-        # 3. Attempt to fetch username — non-fatal, falls back to user_id
-        logger.info(f"[InstagramConnector] Fetching display name/username for user_id: {platform_account_id}...")
-        username = await self._fetch_username(tokens["access_token"], platform_account_id)
-        logger.info(f"[InstagramConnector] Resolved display username: '{username}'")
+        logger.info(f"[InstagramConnector] IGBA ID: {igba_id}, username: {username} (app_scoped_user_id was: {app_scoped_user_id})")
+
+        # Preserve both IDs in stored tokens for future API calls
+        tokens["user_id"] = igba_id
+        tokens["app_scoped_user_id"] = app_scoped_user_id
 
         metadata = {
             "account_type": "BUSINESS",
-            "username": username
+            "username": username,
+            "app_scoped_user_id": app_scoped_user_id,
         }
 
         logger.info(f"[InstagramConnector] Persisting Instagram connector details to database...")
@@ -154,7 +162,7 @@ class InstagramConnector(BaseConnector):
             session=session,
             business_id=business_id,
             platform="instagram",
-            platform_account_id=platform_account_id,
+            platform_account_id=igba_id,
             platform_account_name=username,
             tokens=tokens,
             platform_metadata=metadata
@@ -206,14 +214,15 @@ class InstagramConnector(BaseConnector):
                 logger.warning(f"[InstagramConnector] Network error during long-lived token exchange: {str(e)}. Falling back to short-lived token.")
                 return {"access_token": short_lived_token}
 
-    async def _fetch_username(self, access_token: str, user_id: str) -> str:
+    async def _fetch_profile(self, access_token: str) -> dict:
         """
-        Fetch Instagram username via the versioned Graph API.
-        Non-fatal — falls back to numeric user_id string if the request fails for any reason.
+        Fetch Instagram Business Account profile via GET /me.
+        Returns dict with 'id' (IGBA ID used by webhooks) and 'username'.
+        Non-fatal — returns empty dict if the request fails.
         """
-        url = f"https://graph.instagram.com/v21.0/{user_id}"
+        url = "https://graph.instagram.com/v21.0/me"
         params = {
-            "fields": "username",
+            "fields": "id,username",
             "access_token": access_token
         }
 
@@ -222,14 +231,13 @@ class InstagramConnector(BaseConnector):
                 response = await client.get(url, params=params, timeout=15.0)
                 if response.status_code == 200:
                     data = response.json()
-                    username = data.get("username")
-                    if username:
-                        return username
-                logger.warning(f"[InstagramConnector] Username fetch returned {response.status_code}: {response.text}. Falling back to user_id.")
+                    logger.info(f"[InstagramConnector] GET /me response: {data}")
+                    return data
+                logger.warning(f"[InstagramConnector] GET /me returned {response.status_code}: {response.text}")
             except httpx.HTTPError as e:
-                logger.warning(f"[InstagramConnector] Username fetch failed with network error: {str(e)}. Falling back to user_id.")
+                logger.warning(f"[InstagramConnector] GET /me failed with network error: {str(e)}")
 
-        return user_id  # Safe fallback — OAuth flow must not fail over a missing display name
+        return {}  # Safe fallback — caller will use app_scoped_user_id
 
 
 class TelegramConnector:
