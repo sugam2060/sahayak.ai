@@ -311,7 +311,7 @@ async def handle_chat_event(event: dict):
                 logger.error(f"Network error sending message to Telegram user: {str(e)}")
         elif platform == "instagram":
             # Send reply via Instagram Graph API
-            instagram_endpoint = "https://graph.facebook.com/v21.0/me/messages"
+            instagram_endpoint = "https://graph.instagram.com/v21.0/me/messages"
             try:
                 async with httpx.AsyncClient() as client:
                     payload = {
