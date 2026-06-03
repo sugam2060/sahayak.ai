@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Plus, MoreHorizontal, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu, Ticket } from 'lucide-react';
-import { FaTelegram, FaInstagram, FaTwitter } from 'react-icons/fa';
+import { FaTelegram, FaInstagram, FaTwitter, FaTiktok, FaWhatsapp, FaFacebookMessenger } from 'react-icons/fa';
 import { useChatHistory, useSendReply, useToggleAI } from '@/services/api/chats';
 import { ContextPanel } from './ContextPanel';
 import { useAuthStore } from '@/store/authStore';
@@ -24,7 +24,7 @@ const EmojiPicker = dynamic(
 );
 
 interface ChatWindowProps {
-  selectedChat: { platform: string; senderId: number } | null;
+  selectedChat: { platform: string; senderId: string } | null;
   onMenuClick?: () => void;
 }
 
@@ -303,7 +303,23 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
             <Menu className="w-5 h-5" />
           </button>
           
-          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-white">
+          {chat?.user.profile_pic ? (
+            <img
+              src={chat.user.profile_pic}
+              alt={chat.user.sender_name || 'User'}
+              className="w-10 h-10 rounded-full object-cover border border-white shadow-sm"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                const fallback = document.getElementById('chat-header-fallback');
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div
+            id="chat-header-fallback"
+            style={{ display: chat?.user.profile_pic ? 'none' : 'flex' }}
+            className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-white"
+          >
             {initials}
           </div>
           <div 
@@ -316,6 +332,9 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 {selectedChat.platform === 'telegram' && <FaTelegram className="w-3.5 h-3.5 text-blue-500" />}
                 {selectedChat.platform === 'instagram' && <FaInstagram className="w-3.5 h-3.5 text-pink-600" />}
                 {selectedChat.platform === 'twitter' && <FaTwitter className="w-3.5 h-3.5 text-blue-400" />}
+                {selectedChat.platform === 'tiktok' && <FaTiktok className="w-3.5 h-3.5 text-black" />}
+                {selectedChat.platform === 'whatsapp' && <FaWhatsapp className="w-3.5 h-3.5 text-green-500" />}
+                {selectedChat.platform === 'messenger' && <FaFacebookMessenger className="w-3.5 h-3.5 text-blue-600" />}
                 {selectedChat.platform} DM
               </span>
             </div>
@@ -406,8 +425,23 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
               key={msg.message_id}
               className={`flex gap-3 max-w-[75%] ${isInbound ? '' : 'flex-row-reverse ml-auto'}`}
             >
-              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold border border-white
-                ${isInbound ? 'bg-indigo-100 text-indigo-600' : 'bg-indigo-600 text-white shadow-lg'}`}
+              {isInbound && chat?.user.profile_pic ? (
+                <img
+                  src={chat.user.profile_pic}
+                  alt={chat.user.sender_name || 'User'}
+                  className="w-8 h-8 rounded-full object-cover border border-white shadow-sm flex-shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    const fallback = document.getElementById(`msg-fallback-${msg.message_id}`);
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div
+                id={`msg-fallback-${msg.message_id}`}
+                style={{ display: isInbound && chat?.user.profile_pic ? 'none' : 'flex' }}
+                className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold border border-white
+                  ${isInbound ? 'bg-indigo-100 text-indigo-600' : 'bg-indigo-600 text-white shadow-lg'}`}
               >
                 {isInbound ? initials : orgInitials}
               </div>

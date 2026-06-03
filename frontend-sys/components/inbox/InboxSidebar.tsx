@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, Filter, MessageCircle } from 'lucide-react';
-import { FaInstagram, FaTwitter, FaTelegram } from 'react-icons/fa';
+import { FaInstagram, FaTwitter, FaTelegram, FaTiktok, FaWhatsapp, FaFacebookMessenger } from 'react-icons/fa';
 import { useChats } from '@/services/api/chats';
 import { useAuthStore } from '@/store/authStore';
 
 interface InboxSidebarProps {
-  selectedChat: { platform: string; senderId: number } | null;
-  setSelectedChat: (chat: { platform: string; senderId: number } | null) => void;
+  selectedChat: { platform: string; senderId: string } | null;
+  setSelectedChat: (chat: { platform: string; senderId: string } | null) => void;
 }
 
 const parseDate = (dateStr: string) => {
@@ -49,6 +49,16 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
 
   const chats = data?.chats || [];
 
+  // Compute dynamic platforms present in current conversations
+  const dynamicPlatforms = useMemo(() => {
+    const platforms = chats.map((c) => c.platform);
+    return Array.from(new Set(platforms));
+  }, [chats]);
+
+  const filterOptions = useMemo(() => {
+    return ['All', 'Unread', 'Mine', ...dynamicPlatforms.map((p) => p.charAt(0).toUpperCase() + p.slice(1))];
+  }, [dynamicPlatforms]);
+
   const filteredChats = chats.filter((convo) => {
     const lastMsg = convo.messages[convo.messages.length - 1];
     const lastText = lastMsg ? lastMsg.text.toLowerCase() : '';
@@ -67,10 +77,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
     if (activeFilter === 'Mine') {
       return convo.messages.some(m => m.direction === 'outbound');
     }
-    if (activeFilter === 'Telegram') {
-      return convo.platform === 'telegram';
-    }
-    return true;
+    return convo.platform.toLowerCase() === activeFilter.toLowerCase();
   });
 
   return (
@@ -88,7 +95,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
         </div>
         
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-          {['All', 'Unread', 'Mine', 'Telegram'].map((filter) => (
+          {filterOptions.map((filter) => (
             <button 
               key={filter}
               onClick={() => setActiveFilter(filter)}
@@ -142,24 +149,43 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
             .slice(0, 2);
 
           const isSelected = selectedChat?.platform === convo.platform && 
-                             selectedChat?.senderId === convo.user.sender_id;
+                             String(selectedChat?.senderId) === String(convo.user.sender_id);
 
           return (
             <div 
               key={convo._id}
-              onClick={() => setSelectedChat({ platform: convo.platform, senderId: convo.user.sender_id })}
+              onClick={() => setSelectedChat({ platform: convo.platform, senderId: String(convo.user.sender_id) })}
               className={`px-4 py-3 flex gap-3 cursor-pointer transition-all border-l-4 
                 ${isSelected ? 'bg-indigo-50/50 border-indigo-600' : 'border-transparent hover:bg-slate-50/50'}`}
             >
               <div className="relative flex-shrink-0">
-                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm">
+                {convo.user.profile_pic ? (
+                  <img
+                    src={convo.user.profile_pic}
+                    alt={convo.user.sender_name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const fallback = document.getElementById(`fallback-${convo._id}`);
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div 
+                  id={`fallback-${convo._id}`}
+                  style={{ display: convo.user.profile_pic ? 'none' : 'flex' }}
+                  className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm"
+                >
                   {initials || '??'}
                 </div>
                 <div className="absolute -right-0.5 -bottom-0.5 w-5 h-5 rounded-full bg-white p-1 shadow-sm border border-slate-100 flex items-center justify-center">
                   {convo.platform === 'instagram' && <FaInstagram className="w-full h-full text-pink-600" />}
                   {convo.platform === 'telegram' && <FaTelegram className="w-full h-full text-blue-500" />}
                   {convo.platform === 'twitter' && <FaTwitter className="w-full h-full text-blue-400" />}
-                  {convo.platform !== 'instagram' && convo.platform !== 'telegram' && convo.platform !== 'twitter' && (
+                  {convo.platform === 'tiktok' && <FaTiktok className="w-full h-full text-black" />}
+                  {convo.platform === 'whatsapp' && <FaWhatsapp className="w-full h-full text-green-500" />}
+                  {convo.platform === 'messenger' && <FaFacebookMessenger className="w-full h-full text-blue-600" />}
+                  {!['instagram', 'telegram', 'twitter', 'tiktok', 'whatsapp', 'messenger'].includes(convo.platform) && (
                     <MessageCircle className="w-full h-full text-indigo-500" />
                   )}
                 </div>

@@ -1,6 +1,7 @@
 import logging
 import httpx
 from datetime import datetime, timezone
+from typing import Union, Optional
 from shared.kafka_producer import KafkaProducerPool
 from shared.database.mongodb import MongoDBManager
 from shared.database.schema.chat_message_mongo import MessageDetail, MessageIntent
@@ -34,8 +35,8 @@ async def route_outbound_reply(
     bot_name: str,
     bot_token: str,
     platform: str,
-    chat_id: int,
-    sender_id: int,
+    chat_id: Union[int, str],
+    sender_id: Union[int, str],
     text: str,
     image_url: str = None
 ):
@@ -155,10 +156,15 @@ async def handle_chat_event(event: dict):
             return
         
         # Find existing conversation to get current messages length and check if AI is assigned
+        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
+        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+
         conv = await db.conversations.find_one({
             "platform": platform,
-            "user.sender_id": sender_id
+            "user.sender_id": query_id
         })
+        
+        actual_sender_id = conv["user"]["sender_id"] if conv else sender_id
         
         next_message_id = 1
         if conv and "messages" in conv:
@@ -168,7 +174,7 @@ async def handle_chat_event(event: dict):
         inbound_msg = MessageDetail(
             message_id=next_message_id,
             direction="inbound",
-            sender_id=sender_id,
+            sender_id=actual_sender_id,
             sender_name=sender_name,
             text=text,
             image_url=image_url,
@@ -178,7 +184,7 @@ async def handle_chat_event(event: dict):
         
         # Get/Create the Conversation document
         user_data = {
-            "sender_id": sender_id,
+            "sender_id": actual_sender_id,
             "sender_name": sender_name,
             "sender_username": sender_username,
             "profile_pic": profile_pic if platform == "instagram" else None
@@ -187,7 +193,7 @@ async def handle_chat_event(event: dict):
         now = datetime.now(timezone.utc)
         await db.conversations.update_one({
             "platform": platform,
-            "user.sender_id": sender_id
+            "user.sender_id": actual_sender_id
         }, {
             "$setOnInsert": {
                 "organization_id": org_id,
@@ -233,10 +239,15 @@ async def handle_chat_event(event: dict):
             return
         
         # Find existing conversation
+        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
+        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+
         conv = await db.conversations.find_one({
             "platform": platform,
-            "user.sender_id": sender_id
+            "user.sender_id": query_id
         })
+        
+        actual_sender_id = conv["user"]["sender_id"] if conv else sender_id
         
         next_message_id = 1
         if conv and "messages" in conv:
@@ -256,7 +267,7 @@ async def handle_chat_event(event: dict):
         
         await db.conversations.update_one({
             "platform": platform,
-            "user.sender_id": sender_id
+            "user.sender_id": actual_sender_id
         }, {
             "$set": {"updated_at": datetime.now(timezone.utc)},
             "$push": {"messages": outbound_msg.model_dump()}

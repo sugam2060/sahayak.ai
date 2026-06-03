@@ -30,11 +30,11 @@ export const useChats = (organizationId?: string) => {
   });
 };
 
-export const useChatHistory = (platform?: string, senderId?: number) => {
+export const useChatHistory = (platform?: string, senderId?: string | number) => {
   return useQuery<{ success: boolean; chat: Conversation }>({
     queryKey: ['chat-history', platform, senderId],
     queryFn: async () => {
-      if (!platform || senderId === undefined) {
+      if (!platform || senderId === undefined || senderId === null) {
         throw new Error('Platform and Sender ID are required to fetch chat history.');
       }
       const response = await fetch(`${API_BASE_URL}/api/chats/${platform}/${senderId}`, {
@@ -52,7 +52,7 @@ export const useChatHistory = (platform?: string, senderId?: number) => {
       
       return response.json();
     },
-    enabled: !!platform && senderId !== undefined,
+    enabled: !!platform && senderId !== undefined && senderId !== null,
   });
 };
 
@@ -94,7 +94,7 @@ export const useToggleAI = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (req: { sender_id: number; platform: string; ai_assigned: boolean }) => {
+    mutationFn: async (req: { sender_id: string | number; platform: string; ai_assigned: boolean }) => {
       const response = await fetch(`${API_BASE_URL}/api/chats/toggle-ai`, {
         method: 'POST',
         headers: {

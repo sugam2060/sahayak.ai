@@ -6,7 +6,7 @@ import { useChatHistory } from '@/services/api/chats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 interface ContextPanelProps {
-  selectedChat: { platform: string; senderId: number } | null;
+  selectedChat: { platform: string; senderId: string } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -65,7 +65,23 @@ export const ContextPanel = ({ selectedChat, open, onOpenChange }: ContextPanelP
         <div className="space-y-6 mt-4">
           {/* Profile Section */}
           <div className="text-center space-y-3">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-50 mx-auto flex items-center justify-center text-xl font-bold text-indigo-600 shadow-inner border border-white">
+            {chat.user.profile_pic ? (
+              <img
+                src={chat.user.profile_pic}
+                alt={chat.user.sender_name}
+                className="w-16 h-16 rounded-2xl object-cover mx-auto shadow-inner border border-white"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  const fallback = document.getElementById('context-profile-fallback');
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div
+              id="context-profile-fallback"
+              style={{ display: chat.user.profile_pic ? 'none' : 'flex' }}
+              className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-50 mx-auto flex items-center justify-center text-xl font-bold text-indigo-600 shadow-inner border border-white"
+            >
               {initials}
             </div>
             <div>

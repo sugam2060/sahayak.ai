@@ -1,7 +1,7 @@
 export interface MessageDetail {
   message_id: number;
   direction: 'inbound' | 'outbound';
-  sender_id: number;
+  sender_id: string | number;
   sender_name: string;
   text: string;
   image_url?: string;
@@ -10,9 +10,10 @@ export interface MessageDetail {
 }
 
 export interface ConversationUser {
-  sender_id: number;
+  sender_id: string | number;
   sender_name: string;
   sender_username: string | null;
+  profile_pic?: string | null;
 }
 
 export interface Conversation {
@@ -20,7 +21,7 @@ export interface Conversation {
   organization_id: string;
   platform: string;
   bot_name: string;
-  chat_id: number;
+  chat_id: string | number;
   user: ConversationUser;
   messages: MessageDetail[];
   ai_assigned: boolean;
@@ -29,7 +30,7 @@ export interface Conversation {
 }
 
 export interface SendReplyRequest {
-  sender_id: number;
+  sender_id: string | number;
   platform: string;
   text: string;
 }

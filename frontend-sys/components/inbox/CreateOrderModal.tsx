@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 interface CreateOrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedChat: { platform: string; senderId: number } | null;
+  selectedChat: { platform: string; senderId: string } | null;
 }
 
 interface OrderItemState {

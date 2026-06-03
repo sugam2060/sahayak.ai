@@ -26,7 +26,7 @@ type TicketFormData = z.infer<typeof ticketSchema>;
 interface CreateTicketModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedChat: { platform: string; senderId: number } | null;
+  selectedChat: { platform: string; senderId: string } | null;
   customerName?: string;
 }
 

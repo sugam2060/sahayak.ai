@@ -11,14 +11,14 @@ import { useChats } from '@/services/api/chats';
 const InboxLayout = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const [selectedChat, setSelectedChat] = useState<{ platform: string; senderId: number } | null>(null);
+  const [selectedChat, setSelectedChat] = useState<{ platform: string; senderId: string } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Fetch chats to verify active chats and select latest
   const { data } = useChats(user?.organization_id);
   const chats = useMemo(() => data?.chats || [], [data]);
 
-  const handleSelectChat = (chat: { platform: string; senderId: number } | null) => {
+  const handleSelectChat = (chat: { platform: string; senderId: string } | null) => {
     setSelectedChat(chat);
     setIsSidebarOpen(false); // Auto-close sidebar drawer on mobile after selection
   };
@@ -30,7 +30,7 @@ const InboxLayout = () => {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedChat({
         platform: latestChat.platform,
-        senderId: latestChat.user.sender_id,
+        senderId: String(latestChat.user.sender_id),
       });
     }
   }, [chats, selectedChat]);
@@ -49,7 +49,7 @@ const InboxLayout = () => {
     if (user?.user_id) queryParams.append('user_id', user.user_id);
     if (selectedChat) {
       queryParams.append('platform', selectedChat.platform);
-      queryParams.append('sender_id', selectedChat.senderId.toString());
+      queryParams.append('sender_id', selectedChat.senderId);
     }
 
     const wsUrl = `${wsProto}//${wsHost}/api/chats/ws/${user.organization_id}?${queryParams.toString()}`;
@@ -71,9 +71,10 @@ const InboxLayout = () => {
 
         if (data.type === 'new_message') {
           const { platform, sender_id, message } = data;
+          const sender_id_str = String(sender_id);
 
           // 1. Update the chat history cache for this conversation
-          queryClient.setQueryData(['chat-history', platform, sender_id], (oldData: any) => {
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
             if (!oldData || !oldData.chat) return oldData;
             const currentMsgs = oldData.chat.messages || [];
             // Check for duplicates
@@ -95,7 +96,7 @@ const InboxLayout = () => {
             if (!oldData || !oldData.chats) return oldData;
             const chatsList = [...oldData.chats];
             const idx = chatsList.findIndex(
-              (c: any) => c.platform === platform && c.user.sender_id === sender_id
+              (c: any) => c.platform === platform && String(c.user.sender_id) === sender_id_str
             );
 
             if (idx !== -1) {
@@ -119,9 +120,10 @@ const InboxLayout = () => {
           });
         } else if (data.type === 'ai_assigned_toggle') {
           const { platform, sender_id, ai_assigned } = data;
+          const sender_id_str = String(sender_id);
 
           // 1. Update the chat history cache for this conversation
-          queryClient.setQueryData(['chat-history', platform, sender_id], (oldData: any) => {
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
             if (!oldData || !oldData.chat) return oldData;
             return {
               ...oldData,
@@ -137,7 +139,7 @@ const InboxLayout = () => {
             if (!oldData || !oldData.chats) return oldData;
             const chatsList = [...oldData.chats];
             const idx = chatsList.findIndex(
-              (c: any) => c.platform === platform && c.user.sender_id === sender_id
+              (c: any) => c.platform === platform && String(c.user.sender_id) === sender_id_str
             );
             if (idx !== -1) {
               chatsList[idx] = {

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime, timezone
 from shared.database.mongodb import MongoDBManager
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +14,14 @@ import logging
 
 logger = logging.getLogger("api_gateway.chats")
 
-async def check_chat_access(platform: str, sender_id: int, user_id: str, db_session: AsyncSession) -> bool:
+async def check_chat_access(platform: str, sender_id: Union[int, str], user_id: str, db_session: AsyncSession) -> bool:
     mongo_db = MongoDBManager.get_db()
+    sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
+    query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+    
     conv = await mongo_db.conversations.find_one({
         "platform": platform.lower(),
-        "user.sender_id": int(sender_id)
+        "user.sender_id": query_id
     })
     if not conv:
         # If no conversation exists yet, verify they are at least a valid user
@@ -46,18 +49,18 @@ async def get_db():
         yield session
 
 class SendReplyRequest(BaseModel):
-    sender_id: int
+    sender_id: Union[int, str]
     platform: str
     text: str
 
 class AssignChatRequest(BaseModel):
-    sender_id: int
+    sender_id: Union[int, str]
     platform: str
     assigned_user_id: Optional[str] = None
 
 
 class ToggleAIAssignedRequest(BaseModel):
-    sender_id: int
+    sender_id: Union[int, str]
     platform: str
     ai_assigned: bool
 
@@ -89,7 +92,7 @@ async def get_chat_list(organization_id: Optional[str] = None):
 @router.get("/{platform}/{sender_id}")
 async def get_chat_history(
     platform: str,
-    sender_id: int,
+    sender_id: str,
     current_user: dict = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db)
 ):
@@ -107,9 +110,12 @@ async def get_chat_history(
             )
 
         db = MongoDBManager.get_db()
+        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
+        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+
         doc = await db.conversations.find_one({
             "platform": platform.lower(),
-            "user.sender_id": sender_id
+            "user.sender_id": query_id
         })
         if not doc:
             raise HTTPException(
@@ -148,9 +154,11 @@ async def send_chat_reply_endpoint(
 
         # 1. Retrieve conversation from MongoDB to get organization_id, bot_name, and chat_id
         mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
         conv = await mongo_db.conversations.find_one({
             "platform": req.platform.lower(),
-            "user.sender_id": req.sender_id
+            "user.sender_id": query_id
         })
         if not conv:
             raise HTTPException(
@@ -214,7 +222,7 @@ async def send_chat_reply_endpoint(
 
 @router.post("/reply-image")
 async def send_chat_reply_image(
-    sender_id: int = Form(...),
+    sender_id: str = Form(...),
     platform: str = Form(...),
     image_file: Optional[UploadFile] = File(None),
     image_files: Optional[List[UploadFile]] = File(None),
@@ -236,9 +244,11 @@ async def send_chat_reply_image(
 
         # 1. Retrieve conversation from MongoDB to get organization_id, bot_name, and chat_id
         mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
+        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
         conv = await mongo_db.conversations.find_one({
             "platform": platform.lower(),
-            "user.sender_id": sender_id
+            "user.sender_id": query_id
         })
         if not conv:
             raise HTTPException(
@@ -347,9 +357,11 @@ async def assign_chat_user(
 
     try:
         mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
         conv = await mongo_db.conversations.find_one({
             "platform": req.platform.lower(),
-            "user.sender_id": req.sender_id
+            "user.sender_id": query_id
         })
         if not conv:
             raise HTTPException(
@@ -361,7 +373,7 @@ async def assign_chat_user(
         await mongo_db.conversations.update_one(
             {
                 "platform": req.platform.lower(),
-                "user.sender_id": req.sender_id
+                "user.sender_id": query_id
             },
             {
                 "$set": {
@@ -398,11 +410,13 @@ async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
     """
     try:
         mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
         
         # Check if conversation exists
         conv = await mongo_db.conversations.find_one({
             "platform": req.platform.lower(),
-            "user.sender_id": req.sender_id
+            "user.sender_id": query_id
         })
         if not conv:
             raise HTTPException(
@@ -414,7 +428,7 @@ async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
         await mongo_db.conversations.update_one(
             {
                 "platform": req.platform.lower(),
-                "user.sender_id": req.sender_id
+                "user.sender_id": query_id
             },
             {
                 "$set": {
@@ -464,10 +478,10 @@ logger = logging.getLogger("api_gateway.chats_ws")
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, list[WebSocket]] = {}
-        # Mapping from (platform, sender_id) -> user_id
-        self.active_chat_sessions: dict[tuple[str, int], str] = {}
-        # Mapping from WebSocket -> (platform, sender_id, user_id)
-        self.websocket_to_chat: dict[WebSocket, tuple[str, int, str]] = {}
+        # Mapping from (platform, sender_id_str) -> user_id
+        self.active_chat_sessions: dict[tuple[str, str], str] = {}
+        # Mapping from WebSocket -> (platform, sender_id_str, user_id)
+        self.websocket_to_chat: dict[WebSocket, tuple[str, str, str]] = {}
 
     async def connect(
         self,
@@ -475,15 +489,16 @@ class ConnectionManager:
         websocket: WebSocket,
         user_id: Optional[str] = None,
         platform: Optional[str] = None,
-        sender_id: Optional[int] = None,
+        sender_id: Optional[Union[int, str]] = None,
         db_session: AsyncSession = None
     ) -> bool:
         await websocket.accept()
 
         # Enforce connection restrictions if user_id and chat details are provided
         if user_id and platform and sender_id and db_session:
+            sender_id_str = str(sender_id)
             # Check DB permission first
-            has_access = await check_chat_access(platform, sender_id, user_id, db_session)
+            has_access = await check_chat_access(platform, sender_id_str, user_id, db_session)
             if not has_access:
                 await websocket.send_json({
                     "type": "error",
@@ -493,7 +508,7 @@ class ConnectionManager:
                 return False
 
             # Check for concurrent user-2 connection to same chat
-            chat_key = (platform.lower(), int(sender_id))
+            chat_key = (platform.lower(), sender_id_str)
             if chat_key in self.active_chat_sessions:
                 existing_user = self.active_chat_sessions[chat_key]
                 if str(existing_user) != str(user_id):
@@ -505,7 +520,7 @@ class ConnectionManager:
                     return False
 
             self.active_chat_sessions[chat_key] = user_id
-            self.websocket_to_chat[websocket] = (platform.lower(), int(sender_id), user_id)
+            self.websocket_to_chat[websocket] = (platform.lower(), sender_id_str, user_id)
 
         if org_id not in self.active_connections:
             self.active_connections[org_id] = []
@@ -521,8 +536,8 @@ class ConnectionManager:
                 del self.active_connections[org_id]
 
         if websocket in self.websocket_to_chat:
-            platform, sender_id, user_id = self.websocket_to_chat.pop(websocket)
-            chat_key = (platform, sender_id)
+            platform, sender_id_str, user_id = self.websocket_to_chat.pop(websocket)
+            chat_key = (platform, sender_id_str)
             if self.active_chat_sessions.get(chat_key) == user_id:
                 self.active_chat_sessions.pop(chat_key, None)
 
@@ -544,7 +559,7 @@ async def websocket_endpoint(
     org_id: str,
     user_id: Optional[str] = None,
     platform: Optional[str] = None,
-    sender_id: Optional[int] = None
+    sender_id: Optional[str] = None
 ):
     async with SessionLocal() as db_session:
         success = await manager.connect(
