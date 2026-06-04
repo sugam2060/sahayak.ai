@@ -70,11 +70,24 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                         return service_pb2.CreateOrderResponse(success=False, message=f"Product {pid} not found or unauthorized.")
 
+                # Verify stock sufficiency
+                for item in request.items:
+                    prod = products[UUID(item.product_id)]
+                    if prod.stock < item.quantity:
+                        context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                        return service_pb2.CreateOrderResponse(
+                            success=False,
+                            message=f"Insufficient stock for product: {prod.name} (Available: {prod.stock}, Requested: {item.quantity})"
+                        )
+
                 order_items = []
                 total_amount = 0
 
                 for item in request.items:
                     prod = products[UUID(item.product_id)]
+                    # Deduct stock
+                    prod.stock -= item.quantity
+                    
                     unit_price = prod.price
                     item_total = unit_price * item.quantity
                     total_amount += item_total
@@ -191,12 +204,56 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                 return service_pb2.UpdateOrderStatusResponse(success=False, message="Invalid order status.")
 
             async with SessionLocal() as db:
-                stmt = select(Order).where(Order.id == order_id, Order.organization_id == org_id)
+                stmt = (
+                    select(Order)
+                    .where(Order.id == order_id, Order.organization_id == org_id)
+                    .options(selectinload(Order.items))
+                )
                 res = await db.execute(stmt)
                 order = res.scalar_one_or_none()
                 if not order:
                     context.set_code(grpc.StatusCode.NOT_FOUND)
                     return service_pb2.UpdateOrderStatusResponse(success=False, message="Order not found.")
+
+                # If transitioning to CANCELLED and not already CANCELLED, restore stock
+                if status_enum == OrderStatus.CANCELLED and order.status != OrderStatus.CANCELLED:
+                    product_ids = [item.product_id for item in order.items if item.product_id]
+                    if product_ids:
+                        prod_stmt = select(Product).where(Product.id.in_(product_ids), Product.organization_id == org_id)
+                        prod_res = await db.execute(prod_stmt)
+                        products = {p.id: p for p in prod_res.scalars().all()}
+                        
+                        for item in order.items:
+                            if item.product_id in products:
+                                products[item.product_id].stock += item.quantity
+
+                # If transitioning from CANCELLED to an active status, deduct stock after checking sufficiency
+                elif order.status == OrderStatus.CANCELLED and status_enum != OrderStatus.CANCELLED:
+                    product_ids = [item.product_id for item in order.items if item.product_id]
+                    if product_ids:
+                        prod_stmt = select(Product).where(Product.id.in_(product_ids), Product.organization_id == org_id)
+                        prod_res = await db.execute(prod_stmt)
+                        products = {p.id: p for p in prod_res.scalars().all()}
+                        
+                        # Validate stock sufficiency
+                        for item in order.items:
+                            if item.product_id not in products:
+                                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                                return service_pb2.UpdateOrderStatusResponse(
+                                    success=False,
+                                    message=f"Product {item.product_id} no longer exists or unauthorized."
+                                )
+                            prod = products[item.product_id]
+                            if prod.stock < item.quantity:
+                                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                                return service_pb2.UpdateOrderStatusResponse(
+                                    success=False,
+                                    message=f"Insufficient stock to reactivate order. Product: {prod.name} (Available: {prod.stock}, Required: {item.quantity})"
+                                )
+                        
+                        # Deduct stock
+                        for item in order.items:
+                            products[item.product_id].stock -= item.quantity
 
                 order.status = status_enum
                 await db.commit()

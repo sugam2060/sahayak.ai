@@ -75,7 +75,6 @@ const InboxLayout = () => {
       if (isClosed) return;
       try {
         const data = JSON.parse(event.data);
-        console.log('[WebSocket] Message event:', data);
 
         if (data.type === 'new_message') {
           const { platform, sender_id, message } = data;

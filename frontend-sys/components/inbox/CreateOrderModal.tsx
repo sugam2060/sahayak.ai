@@ -45,6 +45,12 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
   const handleAddItem = (product: Product) => {
     setSelectedItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
+      const currentQty = existing ? existing.quantity : 0;
+      if (currentQty >= product.stock) {
+        setSubmitError(`Cannot add more. Only ${product.stock} items available in stock.`);
+        return prev;
+      }
+      setSubmitError(null);
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
@@ -60,6 +66,11 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
         .map((item) => {
           if (item.product.id === productId) {
             const nextQty = item.quantity + delta;
+            if (delta > 0 && nextQty > item.product.stock) {
+              setSubmitError(`Cannot exceed available stock of ${item.product.stock} items.`);
+              return item;
+            }
+            setSubmitError(null);
             return { ...item, quantity: nextQty };
           }
           return item;
@@ -309,8 +320,14 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
               {products.map((p) => (
                 <div
                   key={p.id}
-                  onClick={() => handleAddItem(p)}
-                  className="flex items-center gap-2 p-2 rounded-xl border border-slate-100 hover:border-indigo-100 hover:bg-indigo-50/10 transition-all cursor-pointer"
+                  onClick={() => {
+                    if (p.stock > 0) {
+                      handleAddItem(p);
+                    } else {
+                      setSubmitError(`${p.name} is out of stock.`);
+                    }
+                  }}
+                  className={`flex items-center gap-2 p-2 rounded-xl border border-slate-100 hover:border-indigo-100 hover:bg-indigo-50/10 transition-all cursor-pointer ${p.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {p.image ? (
