@@ -23,6 +23,9 @@ from shared.config import (
 )
 from shared.kafka_producer import KafkaProducerPool
 from shared.redis_pool import RedisPool
+import importlib
+_chat_service = importlib.import_module("services.chatai-service.chat_service")
+route_inbound_message = _chat_service.route_inbound_message
 
 # Configure Cloudinary
 cloudinary.config(
@@ -179,19 +182,18 @@ async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_pa
 
     # [Webhook] DM from {sender_id}: {text!r} (media: {media_url})
 
-    await KafkaProducerPool.send_message("chat_service", {
-        "org_id": str(connector.business_id),
-        "bot_name": connector.platform_account_name or "Instagram",
-        "bot_token": bot_token,
-        "platform": "instagram",
-        "event_type": "dm",
-        "direction": "inbound",
-        "sender_id": sender_id,
-        "mid": mid,
-        "message_text": text,
-        "image_url": media_url,
-        "payload": raw_payload,
-    })
+    await route_inbound_message(
+        org_id=str(connector.business_id),
+        bot_name=connector.platform_account_name or "Instagram",
+        bot_token=bot_token,
+        platform="instagram",
+        payload=raw_payload,
+        event_type="dm",
+        sender_id=sender_id,
+        mid=mid,
+        message_text=text,
+        image_url=media_url
+    )
 
 
 async def _handle_change(connector: PlatformConnector, change: dict, raw_payload: dict, bot_token: str) -> None:
@@ -201,17 +203,16 @@ async def _handle_change(connector: PlatformConnector, change: dict, raw_payload
 
     # [Webhook] Change event: field={field}
 
-    await KafkaProducerPool.send_message("chat_service", {
-        "org_id": str(connector.business_id),
-        "bot_name": connector.platform_account_name or "Instagram",
-        "bot_token": bot_token,
-        "platform": "instagram",
-        "event_type": field,
-        "direction": "inbound",
-        "from_user": value.get("from", {}),
-        "comment_id": value.get("id"),
-        "payload": raw_payload,
-    })
+    await route_inbound_message(
+        org_id=str(connector.business_id),
+        bot_name=connector.platform_account_name or "Instagram",
+        bot_token=bot_token,
+        platform="instagram",
+        payload=raw_payload,
+        event_type=field,
+        from_user=value.get("from", {}),
+        comment_id=value.get("id")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -297,17 +298,16 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
                 watermark = messaging_event.get("read", {}).get("watermark")
                 if sender_id and watermark:
                     try:
-                        await KafkaProducerPool.send_message("chat_service", {
-                            "org_id": str(connector.business_id),
-                            "bot_name": connector.platform_account_name or "Instagram",
-                            "bot_token": bot_token,
-                            "platform": "instagram",
-                            "event_type": "seen",
-                            "direction": "inbound",
-                            "sender_id": sender_id,
-                            "watermark": watermark,
-                            "payload": payload,
-                        })
+                        await route_inbound_message(
+                            org_id=str(connector.business_id),
+                            bot_name=connector.platform_account_name or "Instagram",
+                            bot_token=bot_token,
+                            platform="instagram",
+                            payload=payload,
+                            event_type="seen",
+                            sender_id=sender_id,
+                            watermark=watermark
+                        )
                     except Exception as e:
                         logger.error(f"[Webhook] Error sending seen event to Kafka: {e}")
                 continue

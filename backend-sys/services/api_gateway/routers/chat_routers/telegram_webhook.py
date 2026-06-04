@@ -5,7 +5,7 @@ from shared.database.engine import SessionLocal
 from shared.database.schema.platform_connectors import PlatformConnector
 import importlib
 _chat_service = importlib.import_module("services.chatai-service.chat_service")
-route_telegram_message = _chat_service.route_telegram_message
+route_inbound_message = _chat_service.route_inbound_message
 import logging
 
 import logging
@@ -140,10 +140,11 @@ async def telegram_webhook(
                     payload["message"]["image_url"] = media_url
             
             # Route webhook payload via Kafka topic 'chat_service'
-            await route_telegram_message(
+            await route_inbound_message(
                 org_id=str(org_id),
                 bot_name=bot_name,
                 bot_token=bot_token,
+                platform="telegram",
                 payload=payload
             )
         else:
