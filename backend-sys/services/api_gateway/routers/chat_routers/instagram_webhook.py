@@ -276,17 +276,6 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
                 logger.warning(f"[Webhook] Entry {entry_id} not found in connectors. Dumping DM.")
                 continue
 
-            # Check message deduplication/idempotency via Redis
-            mid = messaging_event.get("message", {}).get("mid")
-            if mid:
-                try:
-                    redis_client = RedisPool.get_client()
-                    is_new = await redis_client.set(f"webhook:processed:{mid}", "1", ex=86400, nx=True)
-                    if not is_new:
-                        continue
-                except Exception as e:
-                    logger.error(f"[Webhook] Redis deduplication error: {e}")
-
             # Decrypt access token if encrypted
             bot_token = connector.tokens.get("access_token")
             if connector.tokens.get("access_token_encrypted"):
@@ -301,6 +290,38 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
                 except Exception as e:
                     logger.error(f"Failed to decrypt Instagram access token: {e}")
                     continue
+
+            # Intercept read receipts
+            if "read" in messaging_event:
+                sender_id = messaging_event.get("sender", {}).get("id")
+                watermark = messaging_event.get("read", {}).get("watermark")
+                if sender_id and watermark:
+                    try:
+                        await KafkaProducerPool.send_message("chat_service", {
+                            "org_id": str(connector.business_id),
+                            "bot_name": connector.platform_account_name or "Instagram",
+                            "bot_token": bot_token,
+                            "platform": "instagram",
+                            "event_type": "seen",
+                            "direction": "inbound",
+                            "sender_id": sender_id,
+                            "watermark": watermark,
+                            "payload": payload,
+                        })
+                    except Exception as e:
+                        logger.error(f"[Webhook] Error sending seen event to Kafka: {e}")
+                continue
+
+            # Check message deduplication/idempotency via Redis
+            mid = messaging_event.get("message", {}).get("mid")
+            if mid:
+                try:
+                    redis_client = RedisPool.get_client()
+                    is_new = await redis_client.set(f"webhook:processed:{mid}", "1", ex=86400, nx=True)
+                    if not is_new:
+                        continue
+                except Exception as e:
+                    logger.error(f"[Webhook] Redis deduplication error: {e}")
 
             try:
                 await _handle_dm(connector, messaging_event, payload, bot_token)

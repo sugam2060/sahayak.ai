@@ -489,13 +489,150 @@ async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
             logger.error(f"Failed to broadcast ai_assigned_toggle: {ws_err}")
             
         return {"success": True, "ai_assigned": req.ai_assigned}
-        
     except HTTPException as he:
         raise he
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to toggle AI assignment: {str(e)}"
+        )
+
+class MarkReadRequest(BaseModel):
+    sender_id: Union[int, str]
+    platform: str
+
+@router.post("/read")
+async def mark_chat_as_read(
+    req: MarkReadRequest,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Mark all inbound messages in a conversation as seen in MongoDB.
+    If the platform is Instagram, trigger the 'mark_seen' action to the Instagram Graph API.
+    Broadcasts the seen/read status update via WebSocket.
+    """
+    try:
+        # Verify access rights
+        has_access = await check_chat_access(req.platform, req.sender_id, current_user["user_id"], db_session)
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to access this chat."
+            )
+
+        mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
+        
+        # Check if conversation exists
+        conv = await mongo_db.conversations.find_one({
+            "platform": req.platform.lower(),
+            "user.sender_id": query_id
+        })
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found in MongoDB."
+            )
+
+        org_id = conv.get("organization_id")
+        actual_sender_id = conv["user"]["sender_id"]
+
+        # Update all inbound messages inside the conversation to seen = True
+        messages = conv.get("messages", [])
+        updated = False
+        for msg in messages:
+            if msg.get("direction") == "inbound" and not msg.get("seen"):
+                msg["seen"] = True
+                updated = True
+
+        if updated:
+            await mongo_db.conversations.update_one(
+                {
+                    "platform": req.platform.lower(),
+                    "user.sender_id": actual_sender_id
+                },
+                {
+                    "$set": {
+                        "messages": messages,
+                        "updated_at": datetime.now(timezone.utc)
+                    }
+                }
+            )
+
+        # Broadcast the status update to WebSocket clients
+        try:
+            ws_event = {
+                "org_id": str(org_id),
+                "platform": req.platform.lower(),
+                "sender_id": actual_sender_id,
+                "type": "chat_read_update",
+                "seen": True
+            }
+            await manager.broadcast(str(org_id), ws_event)
+        except Exception as ws_err:
+            logger.error(f"Failed to broadcast chat_read_update: {ws_err}")
+
+        # If Instagram, trigger 'mark_seen' Graph API call
+        if req.platform.lower() == "instagram":
+            # Look up the connector in PostgreSQL to get the access token
+            stmt = select(PlatformConnector).where(
+                PlatformConnector.platform == "instagram"
+            )
+            result = await db_session.execute(stmt)
+            connectors = result.scalars().all()
+            
+            connector = None
+            for c in connectors:
+                if str(c.business_id) == str(org_id):
+                    connector = c
+                    break
+                    
+            if connector:
+                bot_token = None
+                if connector.tokens.get("access_token_encrypted"):
+                    from shared.utils import decrypt_access_token
+                    from shared.config import JWT_SECRET
+                    try:
+                        bot_token = decrypt_access_token(
+                            connector.tokens["token_iv"],
+                            connector.tokens["token_ciphertext"],
+                            connector.tokens["token_auth_tag"],
+                            str(JWT_SECRET)
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt Instagram access token for mark_seen: {e}")
+                else:
+                    bot_token = connector.tokens.get("access_token")
+
+                if bot_token:
+                    ig_account_id = connector.platform_account_id
+                    instagram_endpoint = f"https://graph.instagram.com/v25.0/{ig_account_id}/messages"
+                    try:
+                        import httpx
+                        async with httpx.AsyncClient() as client:
+                            payload = {
+                                "recipient": {"id": str(req.sender_id)},
+                                "sender_action": "mark_seen"
+                            }
+                            logger.info(f"Sending mark_seen to Instagram Graph API for user {req.sender_id}")
+                            resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=5.0)
+                            if resp.status_code == 200:
+                                logger.debug("Successfully marked messages as seen on Instagram.")
+                            else:
+                                logger.error(f"Failed to send mark_seen to Instagram: {resp.status_code} - {resp.text}")
+                    except Exception as e:
+                        logger.error(f"Network error sending mark_seen to Instagram: {str(e)}")
+
+        return {"success": True}
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark chat as read: {str(e)}"
         )
 
 # ================= WebSocket Support =================

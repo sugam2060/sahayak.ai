@@ -6,6 +6,7 @@ export interface MessageDetail {
   text: string;
   image_url?: string;
   intent?: 'buy' | 'no_intent';
+  seen?: boolean;
   created_at: string;
 }
 

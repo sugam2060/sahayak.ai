@@ -16,6 +16,7 @@ class MessageDetail(BaseModel):
     image_url: Optional[str] = Field(default=None, description="URL of an image attached to this message")
     intent: Optional[MessageIntent] = Field(default=MessageIntent.NO_INTENT, description="Intent of the message")
     assigned_user: Optional[str] = Field(default=None, description="UUID of the user/agent who sent this outbound message")
+    seen: bool = Field(default=False, description="Whether the message has been seen/read")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ConversationUser(BaseModel):

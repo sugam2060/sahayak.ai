@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Plus, MoreHorizontal, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu, Ticket } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaTwitter, FaTiktok, FaWhatsapp, FaFacebookMessenger } from 'react-icons/fa';
-import { useChatHistory, useSendReply, useToggleAI } from '@/services/api/chats';
+import { useChatHistory, useSendReply, useToggleAI, useMarkChatAsRead } from '@/services/api/chats';
 import { ContextPanel } from './ContextPanel';
 import { useAuthStore } from '@/store/authStore';
 import dynamic from 'next/dynamic';
@@ -72,8 +72,25 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   const { user } = useAuthStore();
   const sendReplyMutation = useSendReply();
   const toggleAIMutation = useToggleAI();
+  const markReadMutation = useMarkChatAsRead();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+
+  const chat = data?.chat;
+  const messages = chat?.messages || [];
+
+  // Trigger mark read when chat is selected or new messages arrive
+  useEffect(() => {
+    if (selectedChat?.platform && selectedChat?.senderId && messages.length > 0) {
+      const hasUnseen = messages.some((m: any) => m.direction === 'inbound' && !m.seen);
+      if (hasUnseen) {
+        markReadMutation.mutate({
+          sender_id: selectedChat.senderId,
+          platform: selectedChat.platform,
+        });
+      }
+    }
+  }, [selectedChat?.platform, selectedChat?.senderId, messages.length]);
 
   // Product card sharing states
   const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
@@ -222,8 +239,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
     defaultValues: { text: '' },
   });
 
-  const chat = data?.chat;
-  const messages = chat?.messages || [];
+
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -490,7 +506,13 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 </div>
                 <div className="flex items-center gap-2 px-1">
                   <span className="text-[10px] font-medium text-slate-400">{msgTime}</span>
-                  {!isInbound && <CheckCircle2 className="w-3 h-3 text-indigo-500" />}
+                  {!isInbound && (
+                    <span title={msg.seen ? 'Seen' : 'Sent'}>
+                      <CheckCircle2
+                        className={`w-3 h-3 ${msg.seen ? 'text-blue-500 font-bold' : 'text-slate-300'}`}
+                      />
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

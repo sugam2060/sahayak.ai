@@ -123,3 +123,35 @@ export const useToggleAI = () => {
     },
   });
 };
+
+export const useMarkChatAsRead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (req: { sender_id: string | number; platform: string }) => {
+      const response = await fetch(`${API_BASE_URL}/api/chats/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(req),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to mark chat as read.');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['chat-history', variables.platform, String(variables.sender_id)],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['chats'],
+      });
+    },
+  });
+};

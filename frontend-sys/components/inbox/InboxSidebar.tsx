@@ -72,7 +72,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
     
     if (activeFilter === 'All') return true;
     if (activeFilter === 'Unread') {
-      return lastMsg && lastMsg.direction === 'inbound';
+      return convo.messages.some(m => m.direction === 'inbound' && !m.seen);
     }
     if (activeFilter === 'Mine') {
       return convo.messages.some(m => m.direction === 'outbound');
@@ -148,6 +148,8 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
             .toUpperCase()
             .slice(0, 2);
 
+          const hasUnseen = convo.messages.some((m: any) => m.direction === 'inbound' && !m.seen);
+
           const isSelected = selectedChat?.platform === convo.platform && 
                              String(selectedChat?.senderId) === String(convo.user.sender_id);
 
@@ -155,7 +157,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
             <div 
               key={convo._id}
               onClick={() => setSelectedChat({ platform: convo.platform, senderId: String(convo.user.sender_id) })}
-              className={`px-4 py-3 flex gap-3 cursor-pointer transition-all border-l-4 
+              className={`px-4 py-3 flex gap-3 cursor-pointer transition-all border-l-4 relative
                 ${isSelected ? 'bg-indigo-50/50 border-indigo-600' : 'border-transparent hover:bg-slate-50/50'}`}
             >
               <div className="relative flex-shrink-0">
@@ -192,12 +194,12 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
                 <div className="absolute -left-0.5 -top-0.5 w-3 h-3 rounded-full border-2 border-white bg-teal-500" />
               </div>
               
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 pr-4">
                 <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-semibold text-slate-900 truncate">{convo.user.sender_name}</h4>
-                  <span className="text-[10px] font-medium text-slate-400">{lastTime}</span>
+                  <h4 className={`text-sm truncate ${hasUnseen ? 'font-bold text-slate-950' : 'font-semibold text-slate-900'}`}>{convo.user.sender_name}</h4>
+                  <span className={`text-[10px] font-medium ${hasUnseen ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>{lastTime}</span>
                 </div>
-                <p className="text-xs text-slate-500 line-clamp-1 mb-2">
+                <p className={`text-xs line-clamp-1 mb-2 ${hasUnseen ? 'font-bold text-slate-950' : 'text-slate-500'}`}>
                   {lastText}
                 </p>
                 <div className="flex items-center justify-between">
@@ -208,6 +210,9 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
                   </div>
                 </div>
               </div>
+              {hasUnseen && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+              )}
             </div>
           );
         })}

@@ -8,6 +8,14 @@ import { InboxSidebar } from './InboxSidebar';
 import { ChatWindow } from './ChatWindow';
 import { useChats } from '@/services/api/chats';
 
+const parseDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const timePart = dateStr.split('T')[1];
+  const hasTimezone = dateStr.endsWith('Z') || 
+                      (timePart && (timePart.includes('+') || timePart.includes('-')));
+  return new Date(hasTimezone ? dateStr : `${dateStr}Z`);
+};
+
 const InboxLayout = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -151,6 +159,85 @@ const InboxLayout = () => {
               ...oldData,
               chats: chatsList
             };
+          });
+        } else if (data.type === 'chat_read_update') {
+          const { platform, sender_id } = data;
+          const sender_id_str = String(sender_id);
+
+          // 1. Update the chat history cache
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
+            if (!oldData || !oldData.chat) return oldData;
+            const updatedMsgs = (oldData.chat.messages || []).map((m: any) => {
+              if (m.direction === 'inbound') {
+                return { ...m, seen: true };
+              }
+              return m;
+            });
+            return {
+              ...oldData,
+              chat: { ...oldData.chat, messages: updatedMsgs }
+            };
+          });
+
+          // 2. Update the main chats list cache
+          queryClient.setQueryData(['chats', user.organization_id], (oldData: any) => {
+            if (!oldData || !oldData.chats) return oldData;
+            const chatsList = (oldData.chats || []).map((c: any) => {
+              if (c.platform === platform && String(c.user.sender_id) === sender_id_str) {
+                const updatedMsgs = (c.messages || []).map((m: any) => {
+                  if (m.direction === 'inbound') {
+                    return { ...m, seen: true };
+                  }
+                  return m;
+                });
+                return { ...c, messages: updatedMsgs };
+              }
+              return c;
+            });
+            return { ...oldData, chats: chatsList };
+          });
+        } else if (data.type === 'chat_seen_update') {
+          const { platform, sender_id, watermark } = data;
+          const sender_id_str = String(sender_id);
+          const watermarkTime = Number(watermark);
+
+          // 1. Update the chat history cache
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
+            if (!oldData || !oldData.chat) return oldData;
+            const updatedMsgs = (oldData.chat.messages || []).map((m: any) => {
+              if (m.direction === 'outbound' && !m.seen) {
+                const msgTime = parseDate(m.created_at).getTime();
+                if (msgTime <= watermarkTime) {
+                  return { ...m, seen: true };
+                }
+              }
+              return m;
+            });
+            return {
+              ...oldData,
+              chat: { ...oldData.chat, messages: updatedMsgs }
+            };
+          });
+
+          // 2. Update the main chats list cache
+          queryClient.setQueryData(['chats', user.organization_id], (oldData: any) => {
+            if (!oldData || !oldData.chats) return oldData;
+            const chatsList = (oldData.chats || []).map((c: any) => {
+              if (c.platform === platform && String(c.user.sender_id) === sender_id_str) {
+                const updatedMsgs = (c.messages || []).map((m: any) => {
+                  if (m.direction === 'outbound' && !m.seen) {
+                    const msgTime = parseDate(m.created_at).getTime();
+                    if (msgTime <= watermarkTime) {
+                      return { ...m, seen: true };
+                    }
+                  }
+                  return m;
+                });
+                return { ...c, messages: updatedMsgs };
+              }
+              return c;
+            });
+            return { ...oldData, chats: chatsList };
           });
         }
       } catch (err) {
