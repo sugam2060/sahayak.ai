@@ -96,6 +96,19 @@ async def update_ai_config(
         await db.commit()
         await db.refresh(config_rec)
         
+        # Trigger RAG knowledge base re-indexing if knowledge_base was provided
+        if req.knowledge_base:
+            import asyncio
+            import importlib
+            try:
+                rag_indexer = importlib.import_module("services.chatai-service.ai.tools.rag.rag_indexer")
+                asyncio.create_task(rag_indexer.upsert_knowledge_base(
+                    organization_id=str(org_id),
+                    organization_name=current_user.get("organization_name", ""),
+                    knowledge_text=req.knowledge_base
+                ))
+            except Exception as rag_err:
+                print(f"RAG indexing task creation failed (non-critical): {rag_err}")
 
         return {
             "success": True,

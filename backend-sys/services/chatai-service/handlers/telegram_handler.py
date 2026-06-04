@@ -10,9 +10,29 @@ class TelegramPlatformHandler(BasePlatformHandler):
     def __init__(self):
         super().__init__(platform="telegram")
 
+    async def _check_ai_enabled(self, org_id: str) -> bool:
+        """Check if AI is enabled at the organization level."""
+        try:
+            from shared.database.engine import SessionLocal
+            from shared.database.schema.organization_config_ai import OrganizationConfigAI
+            from sqlalchemy import select
+            from uuid import UUID
+            
+            async with SessionLocal() as db:
+                stmt = select(OrganizationConfigAI).where(
+                    OrganizationConfigAI.organization_id == UUID(org_id)
+                )
+                res = await db.execute(stmt)
+                config = res.scalar_one_or_none()
+                return config.ai_enabled if config else False
+        except Exception as e:
+            logger.error(f"Error checking AI enabled for org {org_id}: {e}")
+            return False
+
     async def handle_inbound(self, event: dict) -> None:
         org_id = event.get("org_id")
         bot_name = event.get("bot_name")
+        bot_token = event.get("bot_token")
         payload = event.get("payload", {})
         
         message = payload.get("message", {})
@@ -47,6 +67,7 @@ class TelegramPlatformHandler(BasePlatformHandler):
         })
         
         actual_sender_id = conv["user"]["sender_id"] if conv else sender_id
+        is_new_conversation = conv is None
         
         next_message_id = 1
         if conv and "messages" in conv:
@@ -70,6 +91,11 @@ class TelegramPlatformHandler(BasePlatformHandler):
             "profile_pic": None
         }
         
+        # For new conversations, auto-set ai_assigned=True if org has AI enabled
+        initial_ai_assigned = False
+        if is_new_conversation:
+            initial_ai_assigned = await self._check_ai_enabled(org_id)
+        
         now = datetime.now(timezone.utc)
         await self.db.conversations.update_one({
             "platform": self.platform,
@@ -79,7 +105,7 @@ class TelegramPlatformHandler(BasePlatformHandler):
                 "organization_id": org_id,
                 "bot_name": bot_name,
                 "chat_id": chat_id,
-                "ai_assigned": False,
+                "ai_assigned": initial_ai_assigned,
                 "created_at": now
             },
             "$set": {
@@ -99,6 +125,43 @@ class TelegramPlatformHandler(BasePlatformHandler):
             event_type="new_message",
             extra_data={"message": inbound_msg.model_dump(mode="json")}
         )
+        
+        # --- AI Agent Invocation ---
+        # Re-fetch conversation to get the latest ai_assigned state
+        updated_conv = await self.db.conversations.find_one({
+            "platform": self.platform,
+            "user.sender_id": actual_sender_id
+        })
+        
+        if updated_conv and updated_conv.get("ai_assigned"):
+            try:
+                from ..ai.agent import run_agent
+                from ..chat_service import route_outbound_reply
+                
+                ai_response = await run_agent(
+                    org_id=org_id,
+                    platform=self.platform,
+                    sender_id=actual_sender_id,
+                    chat_id=chat_id,
+                    bot_name=bot_name,
+                    bot_token=bot_token,
+                    inbound_text=text,
+                    image_url=image_url,
+                )
+                
+                if ai_response:
+                    await route_outbound_reply(
+                        org_id=org_id,
+                        bot_name=bot_name,
+                        bot_token=bot_token,
+                        platform=self.platform,
+                        chat_id=chat_id,
+                        sender_id=actual_sender_id,
+                        text=ai_response,
+                    )
+                    logger.info(f"AI agent replied to Telegram message from {sender_name}")
+            except Exception as e:
+                logger.error(f"AI agent error for Telegram {sender_id}: {e}", exc_info=True)
 
     async def handle_outbound(self, event: dict) -> None:
         org_id = event.get("org_id")
