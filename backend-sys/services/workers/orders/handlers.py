@@ -47,7 +47,13 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
     async def CreateOrder(self, request, context):
         try:
             org_id = UUID(request.organization_id)
-            agent_id = UUID(request.agent_id)
+            
+            agent_id = None
+            if request.agent_id:
+                try:
+                    agent_id = UUID(request.agent_id)
+                except ValueError:
+                    pass
 
             try:
                 platform_enum = PlatformType(request.platform.lower())
@@ -61,6 +67,15 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
 
             product_ids = [UUID(item.product_id) for item in request.items]
             async with SessionLocal() as db:
+                # Check if agent exists in the users table to avoid foreign key violation
+                from shared.database.schema.users import User
+                agent_exists = False
+                if agent_id:
+                    agent_stmt = select(User.id).where(User.id == agent_id)
+                    agent_res = await db.execute(agent_stmt)
+                    if agent_res.scalar_one_or_none():
+                        agent_exists = True
+
                 stmt = select(Product).where(Product.id.in_(product_ids), Product.organization_id == org_id)
                 res = await db.execute(stmt)
                 products = {p.id: p for p in res.scalars().all()}
@@ -124,7 +139,7 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                     status=OrderStatus.PENDING,
                     total_amount=total_amount,
                     currency=request.currency if request.currency else "NPR",
-                    assigned_agent_id=agent_id,
+                    assigned_agent_id=agent_id if agent_exists else None,
                     items=order_items,
                     tax_amount=tax_amount,
                     delivery_charge=delivery_charge

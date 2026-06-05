@@ -103,6 +103,7 @@ services:
       - .env
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - WORKERS_SERVICE_ADDR=workers:50053
     depends_on:
       kafka:
         condition: service_healthy

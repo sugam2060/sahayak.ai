@@ -17,7 +17,7 @@ export const ProductCard = ({ product, onEdit, onDelete, isDeleting }: ProductCa
   const formattedPrice = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: product.currency,
-  }).format(product.price / 100);
+  }).format(product.price);
 
   const getStockColor = (stock: number) => {
     if (stock <= 0) return 'bg-rose-50 text-rose-700 border-rose-100';

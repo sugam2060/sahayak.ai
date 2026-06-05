@@ -72,7 +72,7 @@ MONGODB_URL = config("MONGODB_URL", default="mongodb+srv://sugam2060:XNCBD8sEsMc
 MONGODB_DB_NAME = config("MONGODB_DB_NAME", default="sahayak_ai")
 
 # Groq Configuration
-GROQ_API_KEY = config("GROQ_API_KEY", default="")
+NVIDIA_API_KEY = config("NVIDIA_API_KEY", default="")
 
 # Pinecone Configuration
 PINECONE_API_KEY = config("PINECONE_API_KEY", default="")

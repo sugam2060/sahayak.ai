@@ -8,11 +8,14 @@ logger = logging.getLogger("chatai_service.manager")
 
 class ChatServiceManager:
     def __init__(self):
-        self.db = MongoDBManager.get_db()
         self.handlers = {
             "telegram": TelegramPlatformHandler(),
             "instagram": InstagramPlatformHandler(),
         }
+
+    @property
+    def db(self):
+        return MongoDBManager.get_db()
 
     def get_handler(self, platform: str):
         handler = self.handlers.get(platform.lower())

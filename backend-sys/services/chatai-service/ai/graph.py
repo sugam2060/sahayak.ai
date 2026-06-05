@@ -37,7 +37,7 @@ def build_agent_graph(tools: list, llm):
     
     Args:
         tools: List of LangChain tool objects to bind to the LLM.
-        llm: The LLM instance (ChatGroq) to use for reasoning.
+        llm: The LLM instance (ChatNVIDIA) to use for reasoning.
     
     Returns:
         A compiled LangGraph StateGraph ready for invocation.

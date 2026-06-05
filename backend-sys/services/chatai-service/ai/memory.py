@@ -232,7 +232,13 @@ def build_system_message(
         f"- You are responding on the {platform} platform as '{bot_name}'.\n"
         "- Do NOT use markdown formatting (no **, ##, etc.) in your final text replies to the user — "
         "these platforms render plain text only. However, you must still output standard tool calls normally when calling tools.\n"
-        "- Keep responses short and conversational, suitable for a chat interface."
+        "- Keep responses short and conversational, suitable for a chat interface.\n"
+        "- STRICT TRUTH ONLY: Never hallucinate or fictionalize products, prices, stock levels, or specifications. "
+        "Only discuss items explicitly found in the database catalog (via search_products) or knowledge base (via search_knowledge_base).\n"
+        "- GRACEFUL DEGRADATION: If database searches (search_products) fail, return errors, or time out, do NOT assume a product is missing. "
+        "Tell the customer politely that the catalog service is temporarily offline, and use the handoff_to_human tool immediately.\n"
+        "- STRICT ORDERING: You MUST retrieve the actual product_id from the database using search_products before calling place_order. "
+        "Never attempt to guess, generate, or mock a product_id."
     )
     
     # Order handling rules

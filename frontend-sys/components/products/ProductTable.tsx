@@ -18,7 +18,7 @@ export const ProductTable = ({ products, onEdit, onDelete, isDeleting }: Product
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency,
-    }).format(price / 100);
+    }).format(price);
   };
 
   const getStockColor = (stock: number) => {

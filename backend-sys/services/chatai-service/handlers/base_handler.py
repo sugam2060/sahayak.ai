@@ -8,7 +8,10 @@ logger = logging.getLogger("chatai_service.handlers.base")
 class BasePlatformHandler(ABC):
     def __init__(self, platform: str):
         self.platform = platform
-        self.db = MongoDBManager.get_db()
+
+    @property
+    def db(self):
+        return MongoDBManager.get_db()
 
     @abstractmethod
     async def handle_inbound(self, event: dict) -> None:

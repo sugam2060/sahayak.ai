@@ -61,7 +61,7 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
       reset({
         name: product.name,
         description: product.description || '',
-        price: product.price / 100,
+        price: product.price,
         currency: product.currency,
         stock: product.stock,
         sku: product.sku || '',
@@ -92,7 +92,7 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
     const formData = new FormData();
     formData.append('name', data.name);
     formData.append('description', data.description || '');
-    formData.append('price', Math.round(data.price * 100).toString());
+    formData.append('price', Math.round(data.price).toString());
     formData.append('currency', data.currency);
     formData.append('stock', data.stock.toString());
     formData.append('sku', data.sku || '');

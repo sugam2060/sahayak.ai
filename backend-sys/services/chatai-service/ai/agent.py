@@ -215,3 +215,48 @@ def _extract_final_response(result: dict) -> Optional[str]:
             return msg.content
     
     return None
+
+
+async def test_agent_run():
+    """
+    Test helper function to execute run_agent with default configurations.
+    """
+    import sys
+    import os
+    # Ensure correct python path
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    
+    from shared.database.mongodb import init_mongodb_db, MongoDBManager
+    
+    # Default test values (can be customized)
+    test_org_id = "de851b5f-b375-4942-862a-3a9406a2f1da"
+    test_platform = "telegram"
+    test_sender_id = "9999"
+    test_chat_id = "8888"
+    test_bot_name = "TestBot"
+    test_bot_token = "mock-token"
+    test_inbound_text = "I want to buy a headset so place the order, my phone no is: 9801234567 and location is Bagbazar"
+    
+    print("Initializing MongoDB indexes...")
+    await init_mongodb_db()
+    
+    print(f"Running agent for org: {test_org_id}, message: {test_inbound_text!r}...")
+    try:
+        response = await run_agent(
+            org_id=test_org_id,
+            platform=test_platform,
+            sender_id=test_sender_id,
+            chat_id=test_chat_id,
+            bot_name=test_bot_name,
+            bot_token=test_bot_token,
+            inbound_text=test_inbound_text
+        )
+        print("=" * 40)
+        print("Agent Response:", response)
+        print("=" * 40)
+    finally:
+        await MongoDBManager.close()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(test_agent_run())

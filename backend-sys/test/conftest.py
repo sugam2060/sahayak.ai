@@ -11,6 +11,17 @@ def event_loop():
     yield loop
     loop.close()
 
+@pytest.fixture(autouse=True)
+def clean_mongodb_manager():
+    """Reset MongoDBManager client/db to avoid loop closure issues."""
+    from shared.database.mongodb import MongoDBManager
+    MongoDBManager._client = None
+    MongoDBManager._db = None
+    yield
+    MongoDBManager._client = None
+    MongoDBManager._db = None
+
+
 @pytest.fixture
 def mock_db_session():
     """Mock fixture for database AsyncSession."""

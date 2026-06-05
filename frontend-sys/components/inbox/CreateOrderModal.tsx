@@ -86,8 +86,8 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
   const calculateTotal = () => {
     const itemsTotal = selectedItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
     const taxPercentage = parseFloat(tax) || 0;
-    const taxVal = Math.round(itemsTotal * (taxPercentage / 100));
-    const deliveryVal = Math.round((parseFloat(deliveryCharge) || 0) * 100);
+    const taxVal = itemsTotal * (taxPercentage / 100);
+    const deliveryVal = parseFloat(deliveryCharge) || 0;
     return itemsTotal + taxVal + deliveryVal;
   };
 
@@ -127,7 +127,7 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
         currency: selectedItems[0]?.product.currency || 'NPR',
         items: itemsPayload,
         tax_percentage: parseInt(tax) || 0,
-        delivery_charge: Math.round((parseFloat(deliveryCharge) || 0) * 100)
+        delivery_charge: Math.round(parseFloat(deliveryCharge) || 0)
       });
 
       if (res.tracking_token) {
@@ -258,7 +258,7 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] font-bold text-slate-800 truncate">{item.product.name}</div>
                       <div className="text-[9px] font-semibold text-slate-400 mt-0.5">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: item.product.currency }).format(item.product.price / 100)} each
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: item.product.currency }).format(item.product.price)} each
                       </div>
                     </div>
 
@@ -342,7 +342,7 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] font-bold text-slate-700">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: p.currency }).format(p.price / 100)}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: p.currency }).format(p.price)}
                     </div>
                     <div className="text-[8px] text-slate-400 mt-0.5">Stock: {p.stock}</div>
                   </div>
@@ -364,7 +364,7 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
                 ? new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: selectedItems[0]?.product.currency || 'NPR'
-                }).format(calculateTotal() / 100)
+                }).format(calculateTotal())
                 : 'NPR 0.00'}
             </span>
           </div>
