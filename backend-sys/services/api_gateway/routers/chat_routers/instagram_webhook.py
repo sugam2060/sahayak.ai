@@ -192,7 +192,8 @@ async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_pa
         sender_id=sender_id,
         mid=mid,
         message_text=text,
-        image_url=media_url
+        image_url=media_url,
+        ig_account_id=connector.platform_account_id
     )
 
 
@@ -241,6 +242,8 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
 
     # --- POST: Incoming event from Meta ---
     raw_body = await request.body()
+
+    logger.info(f"[Webhook] Raw body: {raw_body}")
     # 1. Validate signature early
     signature = request.headers.get("X-Hub-Signature-256")
     if signature:
@@ -271,10 +274,16 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
         
         # --- DM events ---
         for messaging_event in entry.get("messaging", []):
-            # O(1) query / caching lookup using entry_id (always the business account IG_ID)
-            connector = await _load_connector_by_id(db, entry_id)
+            # Skip echo events early to avoid unnecessary DB connector lookups and warning logs
+            if messaging_event.get("message", {}).get("is_echo"):
+                logger.info("[Webhook] Received echo message (message sent from business side). Skipping.")
+                continue
+
+            recipient_id = str(messaging_event.get("recipient", {}).get("id") or entry_id)
+            # O(1) query / caching lookup using recipient_id
+            connector = await _load_connector_by_id(db, recipient_id)
             if not connector:
-                logger.warning(f"[Webhook] Entry {entry_id} not found in connectors. Dumping DM.")
+                logger.warning(f"[Webhook] Recipient {recipient_id} not found in connectors. Dumping DM.")
                 continue
 
             # Decrypt access token if encrypted

@@ -89,85 +89,70 @@ async def maybe_summarize_and_compact(
     Check if the conversation exceeds the threshold and perform summarization.
     
     Implements the 10:5 strategy:
-    - If conversation has >= 15 messages:
-      1. Take the first 10 messages
-      2. Combine with any existing previous_summary
-      3. Ask LLM to create a new summary
-      4. Store summary in MongoDB's previous_summary field
-      5. Remove the first 10 messages from the messages array
-    
-    Args:
-        db: MongoDB database instance
-        platform: Platform name
-        sender_id: Sender's platform ID
-        llm: LLM instance for generating summaries
+    - If unsummarized messages count is >= 15:
+      1. Summarize all messages older than the last 5 messages, appending to the previous summary.
+      2. Store the new summary in LangGraph state as previous_summary.
+      3. Update summarized_count to len(messages) - 5.
+      4. Does NOT delete messages from the state, preserving full history for the UI.
     """
-    sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
-    query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+    from .graph import get_agent_graph
+
+    thread_id = f"{platform}:{sender_id}"
+    graph = get_agent_graph(db)
     
-    conv = await db.conversations.find_one({
-        "platform": platform,
-        "user.sender_id": query_id
-    })
+    config = {"configurable": {"thread_id": thread_id}}
+    state = await graph.aget_state(config)
     
-    if not conv:
+    if not state or "messages" not in state.values:
         return
+        
+    messages = state.values["messages"]
+    summarized_count = state.values.get("summarized_count") or 0
     
-    messages = conv.get("messages", [])
-    if len(messages) < SUMMARY_THRESHOLD:
+    # Calculate how many messages are not yet summarized
+    unsummarized_count = len(messages) - summarized_count
+    if unsummarized_count < SUMMARY_THRESHOLD:
         return
+        
+    previous_summary = state.values.get("previous_summary") or ""
     
-    actual_sender_id = conv["user"]["sender_id"]
-    previous_summary = conv.get("previous_summary") or ""
+    # We want to keep the last 5 messages verbatim for immediate context.
+    # Therefore, the end index of the messages to summarize is len(messages) - 5.
+    end_index = len(messages) - RECENT_MESSAGES_TO_KEEP
+    messages_to_summarize = messages[summarized_count:end_index]
     
-    # Take the first MESSAGES_TO_SUMMARIZE messages for summarization
-    messages_to_summarize = messages[:MESSAGES_TO_SUMMARIZE]
-    remaining_messages = messages[MESSAGES_TO_SUMMARIZE:]
-    
+    if not messages_to_summarize:
+        return
+
     # Build the summarization prompt
     conversation_text = _format_messages_for_summary(messages_to_summarize)
-    
     summary_prompt = _build_summary_prompt(previous_summary, conversation_text)
     
     try:
         response = await llm.ainvoke([HumanMessage(content=summary_prompt)])
         new_summary = response.content.strip()
         
-        # Re-index message_ids for remaining messages (1-based)
-        for idx, msg in enumerate(remaining_messages, start=1):
-            msg["message_id"] = idx
-        
-        # Update MongoDB: store new summary, keep only remaining messages
-        await db.conversations.update_one(
-            {
-                "platform": platform,
-                "user.sender_id": actual_sender_id
-            },
-            {
-                "$set": {
-                    "previous_summary": new_summary,
-                    "messages": remaining_messages,
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
+        # Update checkpointer state (do NOT use RemoveMessage; just save the new summary and summarized_count)
+        await graph.aupdate_state(config, {
+            "previous_summary": new_summary,
+            "summarized_count": end_index
+        }, as_node="agent")
         
         logger.info(
-            f"Summarized {MESSAGES_TO_SUMMARIZE} messages for {platform}:{actual_sender_id}. "
-            f"Remaining: {len(remaining_messages)} messages."
+            f"Summarized {len(messages_to_summarize)} new messages for {platform}:{sender_id}. "
+            f"Total summarized messages: {end_index}."
         )
     except Exception as e:
         logger.error(f"Failed to summarize conversation: {e}", exc_info=True)
-        # Don't crash the agent if summarization fails — just skip
 
 
 def _format_messages_for_summary(messages: list) -> str:
-    """Format MongoDB messages into a readable text for summarization."""
+    """Format LangChain messages into a readable text for summarization."""
     lines = []
     for msg in messages:
-        direction = msg.get("direction", "inbound")
-        sender = msg.get("sender_name", "Unknown")
-        text = msg.get("text", "")
+        direction = msg.additional_kwargs.get("direction", "inbound") if hasattr(msg, "additional_kwargs") else "inbound"
+        sender = msg.additional_kwargs.get("sender_name", "Unknown") if hasattr(msg, "additional_kwargs") else "Unknown"
+        text = msg.content
         role = "Customer" if direction == "inbound" else "Agent"
         if text:
             lines.append(f"{role} ({sender}): {text}")

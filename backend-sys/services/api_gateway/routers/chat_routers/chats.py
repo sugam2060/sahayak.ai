@@ -16,13 +16,9 @@ logger = logging.getLogger("api_gateway.chats")
 
 async def check_chat_access(platform: str, sender_id: Union[int, str], user_id: str, db_session: AsyncSession) -> bool:
     mongo_db = MongoDBManager.get_db()
-    sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
-    query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+    thread_id = f"{platform.lower()}:{sender_id}"
     
-    conv = await mongo_db.conversations.find_one({
-        "platform": platform.lower(),
-        "user.sender_id": query_id
-    })
+    conv = await mongo_db.conversations.find_one({"thread_id": thread_id})
     if not conv:
         # If no conversation exists yet, verify they are at least a valid user
         user_stmt = select(User).where(User.id == UUID(user_id))
@@ -81,7 +77,56 @@ async def get_chat_list(organization_id: Optional[str] = None):
         async for doc in cursor:
             # Convert ObjectId to string for JSON serialization
             doc["_id"] = str(doc["_id"])
+            # Remove binary checkpointer fields to prevent FastAPI JSON serialization errors
+            doc.pop("checkpoint", None)
+            doc.pop("metadata", None)
             chats.append(doc)
+
+        # Dynamically load the messages for each chat in parallel
+        import importlib
+        mongodb_checkpoint = importlib.import_module("services.chatai-service.ai.mongodb_checkpoint")
+        AsyncMongoDBSaver = mongodb_checkpoint.AsyncMongoDBSaver
+        from langchain_core.messages import HumanMessage, AIMessage
+        
+        checkpointer = AsyncMongoDBSaver(db)
+        
+        async def load_messages(chat):
+            chat_thread_id = chat.get("thread_id")
+            if not chat_thread_id:
+                chat["messages"] = []
+                return
+            config = {"configurable": {"thread_id": chat_thread_id}}
+            try:
+                state_tuple = await checkpointer.aget_tuple(config)
+                if state_tuple:
+                    checkpoint_messages = state_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+                    messages = []
+                    for i, msg in enumerate(checkpoint_messages, start=1):
+                        if not isinstance(msg, (HumanMessage, AIMessage)):
+                            continue
+                        direction = "inbound" if isinstance(msg, HumanMessage) else "outbound"
+                        sender_id_val = chat.get("user", {}).get("sender_id") if direction == "inbound" else 0
+                        sender_name = chat.get("user", {}).get("sender_name", "User") if direction == "inbound" else chat.get("bot_name", "AI Assistant")
+                        created_at_val = msg.additional_kwargs.get("created_at") or datetime.now(timezone.utc)
+                        messages.append({
+                            "message_id": i,
+                            "direction": direction,
+                            "sender_id": sender_id_val,
+                            "sender_name": sender_name,
+                            "text": msg.content,
+                            "image_url": msg.additional_kwargs.get("image_url"),
+                            "seen": msg.additional_kwargs.get("seen", True),
+                            "created_at": created_at_val
+                        })
+                    chat["messages"] = messages
+                else:
+                    chat["messages"] = []
+            except Exception as e:
+                logger.error(f"Failed to load messages for thread {chat_thread_id}: {e}")
+                chat["messages"] = []
+                
+        import asyncio
+        await asyncio.gather(*(load_messages(chat) for chat in chats))
         return {"success": True, "chats": chats}
     except Exception as e:
         raise HTTPException(
@@ -110,19 +155,56 @@ async def get_chat_history(
             )
 
         db = MongoDBManager.get_db()
-        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
-        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+        thread_id = f"{platform.lower()}:{sender_id}"
 
-        doc = await db.conversations.find_one({
-            "platform": platform.lower(),
-            "user.sender_id": query_id
-        })
+        doc = await db.conversations.find_one({"thread_id": thread_id})
         if not doc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found."
             )
         doc["_id"] = str(doc["_id"])
+        # Remove binary checkpointer fields to prevent FastAPI JSON serialization errors
+        doc.pop("checkpoint", None)
+        doc.pop("metadata", None)
+
+        # Load from checkpointer
+        import importlib
+        mongodb_checkpoint = importlib.import_module("services.chatai-service.ai.mongodb_checkpoint")
+        AsyncMongoDBSaver = mongodb_checkpoint.AsyncMongoDBSaver
+        from langchain_core.messages import HumanMessage, AIMessage
+        
+        checkpointer = AsyncMongoDBSaver(db)
+        config = {"configurable": {"thread_id": thread_id}}
+        try:
+            state_tuple = await checkpointer.aget_tuple(config)
+            if state_tuple:
+                checkpoint_messages = state_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+                messages = []
+                for i, msg in enumerate(checkpoint_messages, start=1):
+                    if not isinstance(msg, (HumanMessage, AIMessage)):
+                        continue
+                    direction = "inbound" if isinstance(msg, HumanMessage) else "outbound"
+                    sender_id_val = doc.get("user", {}).get("sender_id") if direction == "inbound" else 0
+                    sender_name = doc.get("user", {}).get("sender_name", "User") if direction == "inbound" else doc.get("bot_name", "AI Assistant")
+                    created_at_val = msg.additional_kwargs.get("created_at") or datetime.now(timezone.utc)
+                    messages.append({
+                        "message_id": i,
+                        "direction": direction,
+                        "sender_id": sender_id_val,
+                        "sender_name": sender_name,
+                        "text": msg.content,
+                        "image_url": msg.additional_kwargs.get("image_url"),
+                        "seen": msg.additional_kwargs.get("seen", True),
+                        "created_at": created_at_val
+                    })
+                doc["messages"] = messages
+            else:
+                doc["messages"] = []
+        except Exception as e:
+            logger.error(f"Failed to load checkpoint messages: {e}")
+            doc["messages"] = []
+            
         return {"success": True, "chat": doc}
     except HTTPException as he:
         raise he
@@ -391,31 +473,32 @@ async def assign_chat_user(
 
     try:
         mongo_db = MongoDBManager.get_db()
-        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
-        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
-        conv = await mongo_db.conversations.find_one({
-            "platform": req.platform.lower(),
-            "user.sender_id": query_id
-        })
+        thread_id = f"{req.platform.lower()}:{req.sender_id}"
+        conv = await mongo_db.conversations.find_one({"thread_id": thread_id})
         if not conv:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found."
             )
 
-        # Update assignment
-        await mongo_db.conversations.update_one(
-            {
-                "platform": req.platform.lower(),
-                "user.sender_id": query_id
-            },
-            {
-                "$set": {
+        # Update assignment in checkpointer state
+        import importlib
+        ai_graph = importlib.import_module("services.chatai-service.ai.graph")
+        get_agent_graph = ai_graph.get_agent_graph
+        graph = get_agent_graph(mongo_db)
+        config = {"configurable": {"thread_id": thread_id}}
+        state = await graph.aget_state(config)
+        
+        if state and state.values:
+            await graph.aupdate_state(config, {"assigned_user": req.assigned_user_id}, as_node="agent")
+        else:
+            await mongo_db.conversations.update_one(
+                {"thread_id": thread_id},
+                {"$set": {
                     "assigned_user": req.assigned_user_id,
                     "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
+                }}
+            )
 
         # Broadcast the assignment update via WebSocket
         try:
@@ -444,35 +527,34 @@ async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
     """
     try:
         mongo_db = MongoDBManager.get_db()
-        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
-        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
+        thread_id = f"{req.platform.lower()}:{req.sender_id}"
         
         # Check if conversation exists
-        conv = await mongo_db.conversations.find_one({
-            "platform": req.platform.lower(),
-            "user.sender_id": query_id
-        })
+        conv = await mongo_db.conversations.find_one({"thread_id": thread_id})
         if not conv:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found in MongoDB."
             )
             
-        # Update flag
-        await mongo_db.conversations.update_one(
-            {
-                "platform": req.platform.lower(),
-                "user.sender_id": query_id
-            },
-            {
-                "$set": {
+        # Update flag in checkpointer state
+        import importlib
+        ai_graph = importlib.import_module("services.chatai-service.ai.graph")
+        get_agent_graph = ai_graph.get_agent_graph
+        graph = get_agent_graph(mongo_db)
+        config = {"configurable": {"thread_id": thread_id}}
+        state = await graph.aget_state(config)
+        
+        if state and state.values:
+            await graph.aupdate_state(config, {"ai_assigned": req.ai_assigned}, as_node="agent")
+        else:
+            await mongo_db.conversations.update_one(
+                {"thread_id": thread_id},
+                {"$set": {
                     "ai_assigned": req.ai_assigned,
                     "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
-        
-
+                }}
+            )
         
         # Broadcast the status update to WebSocket clients so the frontend state updates in real-time
         try:
@@ -522,14 +604,10 @@ async def mark_chat_as_read(
             )
 
         mongo_db = MongoDBManager.get_db()
-        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
-        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
+        thread_id = f"{req.platform.lower()}:{req.sender_id}"
         
         # Check if conversation exists
-        conv = await mongo_db.conversations.find_one({
-            "platform": req.platform.lower(),
-            "user.sender_id": query_id
-        })
+        conv = await mongo_db.conversations.find_one({"thread_id": thread_id})
         if not conv:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -537,28 +615,33 @@ async def mark_chat_as_read(
             )
 
         org_id = conv.get("organization_id")
-        actual_sender_id = conv["user"]["sender_id"]
+        actual_sender_id = conv.get("sender_id") or conv.get("user", {}).get("sender_id") or req.sender_id
 
-        # Update all inbound messages inside the conversation to seen = True
-        messages = conv.get("messages", [])
+        # Update all inbound messages inside checkpointer to seen = True
+        import importlib
+        ai_graph = importlib.import_module("services.chatai-service.ai.graph")
+        get_agent_graph = ai_graph.get_agent_graph
+        from langchain_core.messages import HumanMessage
+        
+        graph = get_agent_graph(mongo_db)
+        config = {"configurable": {"thread_id": thread_id}}
+        state = await graph.aget_state(config)
+        
         updated = False
-        for msg in messages:
-            if msg.get("direction") == "inbound" and not msg.get("seen"):
-                msg["seen"] = True
-                updated = True
+        if state and "messages" in state.values:
+            checkpoint_messages = state.values["messages"]
+            for msg in checkpoint_messages:
+                if isinstance(msg, HumanMessage):
+                    if not msg.additional_kwargs.get("seen"):
+                        msg.additional_kwargs["seen"] = True
+                        updated = True
+            if updated:
+                await graph.aupdate_state(config, {"messages": checkpoint_messages}, as_node="agent")
 
-        if updated:
+        if updated or not state:
             await mongo_db.conversations.update_one(
-                {
-                    "platform": req.platform.lower(),
-                    "user.sender_id": actual_sender_id
-                },
-                {
-                    "$set": {
-                        "messages": messages,
-                        "updated_at": datetime.now(timezone.utc)
-                    }
-                }
+                {"thread_id": thread_id},
+                {"$set": {"updated_at": datetime.now(timezone.utc)}}
             )
 
         # Broadcast the status update to WebSocket clients

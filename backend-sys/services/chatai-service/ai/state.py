@@ -32,5 +32,11 @@ class AgentState(TypedDict):
     system_prompt: str
     auto_order_enabled: bool
     
+    # State flags
+    ai_assigned: bool
+    assigned_user: Optional[str]
+    previous_summary: Optional[str]
+    summarized_count: Optional[int]
+
     # Optional: extra context like ig_account_id
     extra: Optional[dict]

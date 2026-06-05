@@ -7,6 +7,13 @@ DEPLOY_DIR="$DEVICES_DIR/deployment"
 KEY_FILE="$DEPLOY_DIR/aws-key"
 DOCKER_USER="sugam2060"
 
+# Fix permissions issue on WSL/Linux where mounted NTFS permissions are too open
+if [ -f "$KEY_FILE" ]; then
+  cp "$KEY_FILE" /tmp/aws-key
+  chmod 600 /tmp/aws-key
+  KEY_FILE="/tmp/aws-key"
+fi
+
 # Fetch EC2 Public IP dynamically from Terraform outputs
 echo "--> Fetching EC2 public IP from Terraform outputs..."
 TF_CMD="terraform"
@@ -74,8 +81,8 @@ echo "=================================================="
 echo "Connecting to EC2 to pull and restart containers..."
 echo "=================================================="
 
-echo "--> Copying updated docker-compose.yml to remote server..."
-scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$DEVICES_DIR/docker-compose.yml" "ubuntu@$EC2_IP:/app/docker-compose.yml"
+# echo "--> Copying updated docker-compose.yml to remote server..."
+# scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$DEVICES_DIR/docker-compose.yml" "ubuntu@$EC2_IP:/app/docker-compose.yml"
 
 # SSH, bypass prompt, and run remote commands
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "ubuntu@$EC2_IP" << 'EOF'

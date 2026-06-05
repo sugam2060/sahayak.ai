@@ -35,6 +35,7 @@ async def init_mongodb_db():
     Initializes database indexes for the MongoDB collections.
     Creates a unique index on platform and user.sender_id to satisfy
     'one document for one sender_id and platform'.
+    Also creates indexes for LangGraph async checkpointer collections.
     """
     try:
         db = MongoDBManager.get_db()
@@ -45,12 +46,37 @@ async def init_mongodb_db():
             unique=True
         )
         logger.info(f"Successfully created unique index '{index_name}' on 'conversations' collection.")
+
+        # Create unique index on 'thread_id' in 'conversations'
+        thread_index_name = await db.conversations.create_index(
+            [("thread_id", 1)],
+            unique=True
+        )
+        logger.info(f"Successfully created unique thread_id index '{thread_index_name}' on 'conversations' collection.")
         
         # Additional helper index for organization lookups
         org_index_name = await db.conversations.create_index(
             [("organization_id", 1)]
         )
         logger.info(f"Successfully created index '{org_index_name}' on 'conversations' collection.")
+
+        # Checkpointer collection indexes
+        logger.info("Initializing checkpointer indexes...")
+        await db.checkpoints.create_index(
+            [("thread_id", 1), ("checkpoint_ns", 1), ("checkpoint_id", -1)],
+            unique=True
+        )
+        await db.checkpoint_blobs.create_index(
+            [("thread_id", 1), ("checkpoint_ns", 1), ("channel", 1), ("version", 1)],
+            unique=True
+        )
+        await db.checkpoint_writes.create_index(
+            [("thread_id", 1), ("checkpoint_ns", 1), ("checkpoint_id", 1), ("task_id", 1), ("idx", 1)],
+            unique=True
+        )
+        logger.info("Successfully initialized all checkpointer indexes.")
+        
     except Exception as e:
         logger.error(f"Failed to initialize MongoDB indexes: {str(e)}")
         raise e
+

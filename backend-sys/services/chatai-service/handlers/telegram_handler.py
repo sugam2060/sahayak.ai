@@ -1,7 +1,6 @@
 import logging
 import httpx
 from datetime import datetime, timezone
-from shared.database.schema.chat_message_mongo import MessageDetail, MessageIntent
 from .base_handler import BasePlatformHandler
 
 logger = logging.getLogger("chatai_service.handlers.telegram")
@@ -58,31 +57,11 @@ class TelegramPlatformHandler(BasePlatformHandler):
         sender_username = sender.get("username")
 
         # Find existing conversation
-        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
-        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
-
-        conv = await self.db.conversations.find_one({
-            "platform": self.platform,
-            "user.sender_id": query_id
-        })
+        thread_id = f"{self.platform}:{sender_id}"
+        conv = await self.db.conversations.find_one({"thread_id": thread_id})
         
         actual_sender_id = conv["user"]["sender_id"] if conv else sender_id
         is_new_conversation = conv is None
-        
-        next_message_id = 1
-        if conv and "messages" in conv:
-            next_message_id = len(conv["messages"]) + 1
-            
-        inbound_msg = MessageDetail(
-            message_id=next_message_id,
-            direction="inbound",
-            sender_id=actual_sender_id,
-            sender_name=sender_name,
-            text=text,
-            image_url=image_url,
-            intent=MessageIntent.NO_INTENT,
-            created_at=datetime.now(timezone.utc)
-        )
         
         user_data = {
             "sender_id": actual_sender_id,
@@ -95,43 +74,69 @@ class TelegramPlatformHandler(BasePlatformHandler):
         initial_ai_assigned = False
         if is_new_conversation:
             initial_ai_assigned = await self._check_ai_enabled(org_id)
+        else:
+            initial_ai_assigned = conv.get("ai_assigned", False)
         
         now = datetime.now(timezone.utc)
         await self.db.conversations.update_one({
-            "platform": self.platform,
-            "user.sender_id": actual_sender_id
+            "thread_id": thread_id
         }, {
             "$setOnInsert": {
                 "organization_id": org_id,
                 "bot_name": bot_name,
                 "chat_id": chat_id,
+                "platform": self.platform,
+                "sender_id": actual_sender_id,
                 "ai_assigned": initial_ai_assigned,
                 "created_at": now
             },
             "$set": {
                 "user": user_data,
                 "updated_at": now
-            },
-            "$push": {
-                "messages": inbound_msg.model_dump()
             }
         }, upsert=True)
 
-        logger.debug(f"Saved inbound message {next_message_id} from {sender_name} to MongoDB.")
+        # Update checkpointer state if AI is NOT assigned
+        if not initial_ai_assigned:
+            from langchain_core.messages import HumanMessage
+            from ..ai.graph import get_agent_graph
+            
+            inbound_msg_lc = HumanMessage(
+                content=text,
+                additional_kwargs={
+                    "direction": "inbound",
+                    "sender_id": str(actual_sender_id),
+                    "sender_name": sender_name,
+                    "created_at": now.isoformat(),
+                    "seen": False
+                }
+            )
+            graph = get_agent_graph(self.db)
+            config = {"configurable": {"thread_id": thread_id}}
+            await graph.aupdate_state(config, {"messages": [inbound_msg_lc]})
+
+        logger.debug(f"Saved inbound message from {sender_name} to checkpointer.")
         
+        inbound_msg_dict = {
+            "message_id": 0,
+            "direction": "inbound",
+            "sender_id": actual_sender_id,
+            "sender_name": sender_name,
+            "text": text,
+            "image_url": image_url,
+            "seen": False,
+            "created_at": now.isoformat()
+        }
         await self.broadcast_ws_event(
             org_id=org_id,
             sender_id=sender_id,
             event_type="new_message",
-            extra_data={"message": inbound_msg.model_dump(mode="json")}
+            extra_data={"message": inbound_msg_dict}
         )
         
         # --- AI Agent Invocation ---
         # Re-fetch conversation to get the latest ai_assigned state
-        updated_conv = await self.db.conversations.find_one({
-            "platform": self.platform,
-            "user.sender_id": actual_sender_id
-        })
+        updated_conv = await self.db.conversations.find_one({"thread_id": thread_id})
         
         if updated_conv and updated_conv.get("ai_assigned"):
             try:
@@ -176,45 +181,60 @@ class TelegramPlatformHandler(BasePlatformHandler):
             logger.warning(f"Skipping outbound event missing chat_id or sender_id: {event}")
             return
         
-        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
-        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
-
-        conv = await self.db.conversations.find_one({
-            "platform": self.platform,
-            "user.sender_id": query_id
-        })
+        thread_id = f"{self.platform}:{sender_id}"
+        conv = await self.db.conversations.find_one({"thread_id": thread_id})
         
         actual_sender_id = conv["user"]["sender_id"] if conv else sender_id
         
-        next_message_id = 1
-        if conv and "messages" in conv:
-            next_message_id = len(conv["messages"]) + 1
+        # Deduplicate outbound replies: check if AI already saved this message to the checkpointer
+        from ..ai.graph import get_agent_graph
+        from langchain_core.messages import AIMessage
         
-        outbound_msg = MessageDetail(
-            message_id=next_message_id,
-            direction="outbound",
-            sender_id=0,
-            sender_name=bot_name,
-            text=text,
-            image_url=image_url,
-            intent=MessageIntent.NO_INTENT,
-            created_at=datetime.now(timezone.utc)
+        graph = get_agent_graph(self.db)
+        config = {"configurable": {"thread_id": thread_id}}
+        state = await graph.aget_state(config)
+        
+        is_duplicate = False
+        if state and "messages" in state.values and state.values["messages"]:
+            last_msg = state.values["messages"][-1]
+            if isinstance(last_msg, AIMessage) and last_msg.content == text:
+                is_duplicate = True
+                
+        now = datetime.now(timezone.utc)
+        if not is_duplicate:
+            outbound_msg_lc = AIMessage(
+                content=text,
+                additional_kwargs={
+                    "direction": "outbound",
+                    "sender_id": 0,
+                    "sender_name": bot_name or "Agent",
+                    "created_at": now.isoformat(),
+                    "seen": True
+                }
+            )
+            await graph.aupdate_state(config, {"messages": [outbound_msg_lc]})
+            
+        await self.db.conversations.update_one(
+            {"thread_id": thread_id},
+            {"$set": {"updated_at": now}}
         )
+        logger.debug("Saved outbound reply message to checkpointer.")
         
-        await self.db.conversations.update_one({
-            "platform": self.platform,
-            "user.sender_id": actual_sender_id
-        }, {
-            "$set": {"updated_at": datetime.now(timezone.utc)},
-            "$push": {"messages": outbound_msg.model_dump()}
-        })
-        logger.debug(f"Saved outbound reply message {next_message_id} to MongoDB.")
-        
+        outbound_msg_dict = {
+            "message_id": 0,
+            "direction": "outbound",
+            "sender_id": 0,
+            "sender_name": bot_name or "Agent",
+            "text": text,
+            "image_url": image_url,
+            "seen": True,
+            "created_at": now.isoformat()
+        }
         await self.broadcast_ws_event(
             org_id=org_id,
             sender_id=sender_id,
             event_type="new_message",
-            extra_data={"message": outbound_msg.model_dump(mode="json")}
+            extra_data={"message": outbound_msg_dict}
         )
         
         # Send message back to Telegram user via Bot API

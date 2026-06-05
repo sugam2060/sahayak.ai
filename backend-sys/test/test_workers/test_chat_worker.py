@@ -7,6 +7,9 @@ chat_worker_module = importlib.import_module("services.chatai-service.chat_worke
 KafkaChatWorker = chat_worker_module.KafkaChatWorker
 chat_service_module = importlib.import_module("services.chatai-service.chat_service")
 
+# Dynamically import the graph module so we can patch get_agent_graph
+ai_graph = importlib.import_module("services.chatai-service.ai.graph")
+
 @pytest.mark.asyncio
 async def test_kafka_chat_worker_consume_inbound():
     # Mock MongoDBManager
@@ -60,32 +63,46 @@ async def test_kafka_chat_worker_consume_inbound():
 
     worker = KafkaChatWorker()
     
+    # Mock graph & state snapshot
+    mock_graph = MagicMock()
+    mock_graph.aget_state = AsyncMock(return_value=None)
+    mock_graph.aupdate_state = AsyncMock()
+    
     with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
          patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
+         patch.object(ai_graph, "get_agent_graph", return_value=mock_graph), \
          patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
          
         mock_db.conversations.find_one = AsyncMock(return_value=None)
+        mock_db.conversations.update_one = AsyncMock()
         
         try:
             await worker.start()
         except asyncio.CancelledError:
             pass
             
-        # Verify MongoDB was called exactly once (for the inbound message)
+        # Verify MongoDB conversations.update_one was called exactly once (for metadata insert)
         assert mock_db.conversations.update_one.call_count == 1
         
         # Check first call args (inbound)
         first_call_args = mock_db.conversations.update_one.call_args_list[0]
         query = first_call_args[0][0]
         update = first_call_args[0][1]
-        assert query == {"platform": "telegram", "user.sender_id": 9999}
+        assert query == {"thread_id": "telegram:9999"}
         assert update["$setOnInsert"]["organization_id"] == "test-org-123"
         assert update["$setOnInsert"]["bot_name"] == "TestBot"
         assert update["$setOnInsert"]["chat_id"] == 8888
         assert update["$set"]["user"]["sender_name"] == "Alice"
-        assert update["$push"]["messages"]["text"] == "Hello bot"
-        assert update["$push"]["messages"]["direction"] == "inbound"
-        assert update["$push"]["messages"]["message_id"] == 1
+        
+        # Verify the message update was correctly routed to the checkpointer state
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
+        config_arg = call_args[0][0]
+        state_update = call_args[0][1]
+        assert config_arg == {"configurable": {"thread_id": "telegram:9999"}}
+        messages = state_update["messages"]
+        assert len(messages) == 1
+        assert messages[0].content == "Hello bot"
         
         # Verify Telegram Bot API was NOT called for inbound messages
         mock_post.assert_not_called()
@@ -132,11 +149,23 @@ async def test_kafka_chat_worker_consume_outbound():
 
     worker = KafkaChatWorker()
     
+    # Mock graph & state snapshot
+    mock_graph = MagicMock()
+    
+    # Mock the state snapshot containing no previous messages (so duplicate check passes)
+    class MockStateSnapshot:
+        def __init__(self):
+            self.values = {"messages": []}
+            
+    mock_graph.aget_state = AsyncMock(return_value=MockStateSnapshot())
+    mock_graph.aupdate_state = AsyncMock()
+    
     with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
          patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
+         patch.object(ai_graph, "get_agent_graph", return_value=mock_graph), \
          patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
          
-        # Mock pre-existing conversation containing 1 message
+        # Mock pre-existing conversation metadata
         mock_conversation = {
             "organization_id": "test-org-123",
             "platform": "telegram",
@@ -145,16 +174,10 @@ async def test_kafka_chat_worker_consume_outbound():
             "user": {
                 "sender_id": 9999,
                 "sender_name": "Alice"
-            },
-            "messages": [
-                {
-                    "message_id": 1,
-                    "direction": "inbound",
-                    "text": "Hello bot"
-                }
-            ]
+            }
         }
         mock_db.conversations.find_one = AsyncMock(return_value=mock_conversation)
+        mock_db.conversations.update_one = AsyncMock()
         
         # Mock Telegram response to be successful
         mock_response = MagicMock()
@@ -166,7 +189,7 @@ async def test_kafka_chat_worker_consume_outbound():
         except asyncio.CancelledError:
             pass
             
-        # Verify MongoDB was called exactly once (to append outbound message)
+        # Verify MongoDB was called exactly once (to update updated_at timestamp)
         assert mock_db.conversations.update_one.call_count == 1
         
         # Check update_one arguments
@@ -174,10 +197,18 @@ async def test_kafka_chat_worker_consume_outbound():
         query = first_call_args[0][0]
         update = first_call_args[0][1]
         
-        assert query == {"platform": "telegram", "user.sender_id": 9999}
-        assert update["$push"]["messages"]["direction"] == "outbound"
-        assert update["$push"]["messages"]["text"] == "Hello outbound reply"
-        assert update["$push"]["messages"]["message_id"] == 2  # Increments from 1 to 2
+        assert query == {"thread_id": "telegram:9999"}
+        assert "$set" in update and "updated_at" in update["$set"]
+        
+        # Verify checkpointer was updated with outbound message
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
+        config_arg = call_args[0][0]
+        state_update = call_args[0][1]
+        assert config_arg == {"configurable": {"thread_id": "telegram:9999"}}
+        messages = state_update["messages"]
+        assert len(messages) == 1
+        assert messages[0].content == "Hello outbound reply"
         
         # Verify Telegram send API was called with the reply
         mock_post.assert_called_once()
