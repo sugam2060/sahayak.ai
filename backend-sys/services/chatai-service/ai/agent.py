@@ -121,6 +121,16 @@ async def run_agent(
             sender_id=sender_id
         )
         
+        # Fetch customer metadata
+        sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
+        query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+        conv = await mongo_db.conversations.find_one({
+            "platform": platform,
+            "user.sender_id": query_id
+        })
+        user_info = conv.get("user", {}) if conv else {}
+        customer_name = user_info.get("sender_name") or user_info.get("sender_username") or ""
+        
         # 4. Build system message
         system_msg = build_system_message(
             system_prompt=ai_config["system_prompt"],
@@ -163,6 +173,7 @@ async def run_agent(
             "bot_token": bot_token,
             "system_prompt": ai_config["system_prompt"],
             "auto_order_enabled": ai_config["auto_order_enabled"],
+            "customer_name": customer_name,
             "extra": kwargs,
         }
         

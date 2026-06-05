@@ -37,7 +37,19 @@ def test_get_chat_list(test_client, mock_mongo_db):
     assert len(data["chats"]) == 2
     assert data["chats"][0]["_id"] == "60c72b2f9b1d8e1f5c8b4567"
 
-def test_get_chat_history_found(test_client, mock_mongo_db):
+def test_get_chat_history_found(test_client, override_chats_db, mock_db_session, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
+    
+    from shared.database.schema.users import User, UserRole
+    from uuid import UUID
+    mock_user = User(
+        id=UUID("22222222-3333-4444-5555-666666666666"),
+        role=UserRole.OWNER
+    )
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_user
+    mock_db_session.execute.return_value = mock_result
+
     mock_conversation = {
         "_id": "60c72b2f9b1d8e1f5c8b4567",
         "organization_id": "org_1",
@@ -53,7 +65,19 @@ def test_get_chat_history_found(test_client, mock_mongo_db):
     assert data["success"] is True
     assert data["chat"]["user"]["sender_name"] == "Alice"
 
-def test_get_chat_history_not_found(test_client, mock_mongo_db):
+def test_get_chat_history_not_found(test_client, override_chats_db, mock_db_session, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
+    
+    from shared.database.schema.users import User, UserRole
+    from uuid import UUID
+    mock_user = User(
+        id=UUID("22222222-3333-4444-5555-666666666666"),
+        role=UserRole.OWNER
+    )
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_user
+    mock_db_session.execute.return_value = mock_result
+
     mock_mongo_db.conversations.find_one.return_value = None
     response = test_client.get("/api/chats/telegram/9999")
     assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -68,6 +92,15 @@ def override_chats_db(test_client, mock_db_session):
     test_client.app.dependency_overrides.pop(get_db, None)
 
 def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
+    
+    from shared.database.schema.users import User, UserRole
+    from uuid import UUID
+    mock_user = User(
+        id=UUID("22222222-3333-4444-5555-666666666666"),
+        role=UserRole.OWNER
+    )
+
     # 1. Mock conversation retrieval in MongoDB
     mock_conversation = {
         "_id": "60c72b2f9b1d8e1f5c8b4567",
@@ -84,9 +117,14 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
         platform="telegram",
         tokens={"bot_token": "123456:ABC-DEF-GHI"}
     )
-    mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [mock_connector]
-    mock_db_session.execute.return_value = mock_result
+    
+    mock_result_user = MagicMock()
+    mock_result_user.scalar_one_or_none.return_value = mock_user
+    
+    mock_result_connectors = MagicMock()
+    mock_result_connectors.scalars.return_value.all.return_value = [mock_connector]
+    
+    mock_db_session.execute.side_effect = [mock_result_user, mock_result_connectors]
     
     # 3. Call endpoint and assert
     payload = {
@@ -102,7 +140,6 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["success"] is True
         
-        # Verify Kafka routing was triggered with correct parameters
         mock_route.assert_called_once_with(
             org_id="46a42f39-5876-49e2-84b0-725f0733e178",
             bot_name=None,
@@ -110,7 +147,8 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
             platform="telegram",
             chat_id=8888,
             sender_id=9999,
-            text="Hello client reply"
+            text="Hello client reply",
+            ig_account_id=None
         )
 
 def test_toggle_ai_success(test_client, mock_mongo_db):

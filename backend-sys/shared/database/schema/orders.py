@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from shared.database.schema.organizations import Organization
     from shared.database.schema.users import User
     from shared.database.schema.products import Product
+    from shared.database.schema.customers import Customer
 
 class PlatformType(enum.Enum):
     INSTAGRAM = "instagram"
@@ -49,6 +50,7 @@ class Order(Base):
     delivery_charge: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     
     assigned_agent_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    customer_id: Mapped[UUID] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"), onupdate=text("now()"))
@@ -56,6 +58,7 @@ class Order(Base):
     # Relationships
     organization: Mapped["Organization"] = relationship("Organization", back_populates="orders")
     assigned_agent: Mapped["User"] = relationship("User", back_populates="assigned_orders")
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="orders")
     items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 class OrderItem(Base):

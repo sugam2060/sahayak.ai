@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from shared.database.schema.organizations import Organization
     from shared.database.schema.users import User
+    from shared.database.schema.customers import Customer
 
 class TicketStatus(enum.Enum):
     OPEN = "open"
@@ -42,6 +43,7 @@ class Ticket(Base):
     customer_phone: Mapped[str] = mapped_column(String(255), nullable=True)
     
     assigned_agent_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    customer_id: Mapped[UUID] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"), onupdate=text("now()"))
@@ -49,3 +51,4 @@ class Ticket(Base):
     # Relationships
     organization: Mapped["Organization"] = relationship("Organization", back_populates="tickets")
     assigned_agent: Mapped["User"] = relationship("User", back_populates="assigned_tickets")
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="tickets")

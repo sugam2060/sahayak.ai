@@ -21,6 +21,7 @@ class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
     tax_percentage: Optional[int] = Field(0, description="Tax percentage (e.g. 13 for 13%)")
     delivery_charge: Optional[int] = Field(0, description="Delivery charge in subunits")
+    customer_name: Optional[str] = None
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_order(
@@ -60,7 +61,8 @@ async def create_order(
             currency=req.currency,
             items=grpc_items,
             tax_percentage=req.tax_percentage or 0,
-            delivery_charge=req.delivery_charge or 0
+            delivery_charge=req.delivery_charge or 0,
+            customer_name=req.customer_name or ""
         )
 
         res = await request.app.state.order_stub.CreateOrder(grpc_req)
@@ -76,7 +78,8 @@ async def create_order(
             "order_id": res.order_id,
             "total_amount": res.total_amount,
             "status": res.status,
-            "tracking_token": res.tracking_token
+            "tracking_token": res.tracking_token,
+            "customer_id": res.customer_id
         }
 
     except HTTPException as he:

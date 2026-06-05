@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Package, Trash2, Plus, Minus, Search, ShoppingBag } from 'lucide-react';
 import { useProducts } from '@/services/api/products';
 import { useCreateOrder, CreateOrderItemInput } from '@/services/api/orders';
@@ -13,6 +13,7 @@ interface CreateOrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedChat: { platform: string; senderId: string } | null;
+  customerName?: string;
 }
 
 interface OrderItemState {
@@ -20,7 +21,8 @@ interface OrderItemState {
   quantity: number;
 }
 
-export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrderModalProps) => {
+export const CreateOrderModal = ({ open, onOpenChange, selectedChat, customerName = '' }: CreateOrderModalProps) => {
+  const [custName, setCustName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [search, setSearch] = useState('');
@@ -28,6 +30,13 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [tax, setTax] = useState('0');
   const [deliveryCharge, setDeliveryCharge] = useState('0');
+
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCustName(customerName || '');
+    }
+  }, [open, customerName]);
 
   const createOrderMutation = useCreateOrder();
   const sendReplyMutation = useSendReply();
@@ -98,6 +107,10 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
       setSubmitError('Please add at least one product to the order.');
       return;
     }
+    if (!custName.trim()) {
+      setSubmitError('Customer name is required.');
+      return;
+    }
     if (!phone.trim()) {
       setSubmitError('Customer phone number is required.');
       return;
@@ -122,6 +135,7 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
       const res = await createOrderMutation.mutateAsync({
         platform: selectedChat.platform,
         external_customer_id: selectedChat.senderId.toString(),
+        customer_name: custName.trim(),
         customer_phone: phone.trim(),
         delivery_address: address.trim(),
         currency: selectedItems[0]?.product.currency || 'NPR',
@@ -188,6 +202,17 @@ export const CreateOrderModal = ({ open, onOpenChange, selectedChat }: CreateOrd
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 font-bold focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter customer name..."
+                  value={custName}
+                  onChange={(e) => setCustName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-xs focus:outline-none font-medium"
+                />
               </div>
 
               <div>

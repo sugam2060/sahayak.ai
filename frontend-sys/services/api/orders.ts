@@ -10,6 +10,7 @@ export interface CreateOrderItemInput {
 export interface CreateOrderInput {
   platform: string;
   external_customer_id?: string;
+  customer_name?: string;
   customer_phone?: string;
   delivery_address?: string;
   currency?: string;

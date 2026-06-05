@@ -40,7 +40,8 @@ def to_order_info(order: Order) -> service_pb2.OrderInfo:
         updated_at=order.updated_at.isoformat() if order.updated_at else "",
         items=items,
         tax_amount=order.tax_amount or 0,
-        delivery_charge=order.delivery_charge or 0
+        delivery_charge=order.delivery_charge or 0,
+        customer_id=str(order.customer_id) if order.customer_id else ""
     )
 
 class OrderService(service_pb2_grpc.OrderServiceServicer):
@@ -130,6 +131,36 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                 delivery_charge = request.delivery_charge or 0
                 total_amount += tax_amount + delivery_charge
 
+                # 1. Fetch or create Customer
+                from shared.database.schema.customers import Customer
+                customer_stmt = select(Customer).where(
+                    Customer.organization_id == org_id,
+                    Customer.platform == platform_enum,
+                    Customer.external_id == request.external_customer_id
+                )
+                customer_res = await db.execute(customer_stmt)
+                customer = customer_res.scalars().first()
+                
+                customer_name = request.customer_name or f"{request.platform.capitalize()} Customer"
+                if not customer:
+                    customer = Customer(
+                        organization_id=org_id,
+                        platform=platform_enum,
+                        external_id=request.external_customer_id,
+                        name=customer_name,
+                        phone=request.customer_phone if request.customer_phone else None,
+                        social_media_details={}
+                    )
+                    db.add(customer)
+                    await db.flush() # get customer.id
+                else:
+                    # Update phone or name if not set
+                    if request.customer_phone and not customer.phone:
+                        customer.phone = request.customer_phone
+                    if request.customer_name and (customer.name == f"{request.platform.capitalize()} Customer" or not customer.name):
+                        customer.name = request.customer_name
+                    await db.flush()
+
                 new_order = Order(
                     organization_id=org_id,
                     platform=platform_enum,
@@ -140,6 +171,7 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                     total_amount=total_amount,
                     currency=request.currency if request.currency else "NPR",
                     assigned_agent_id=agent_id if agent_exists else None,
+                    customer_id=customer.id,
                     items=order_items,
                     tax_amount=tax_amount,
                     delivery_charge=delivery_charge
@@ -158,7 +190,8 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                     order_id=str(new_order.id),
                     total_amount=new_order.total_amount,
                     status=new_order.status.value,
-                    tracking_token=token
+                    tracking_token=token,
+                    customer_id=str(customer.id)
                 )
         except Exception as e:
             logger.error(f"Error creating order: {e}")

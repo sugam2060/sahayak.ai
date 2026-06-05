@@ -9,6 +9,7 @@ class LoginSchema(BaseModel):
     password: str
 
 from fastapi.responses import JSONResponse
+from shared.config import COOKIE_DOMAIN
 
 @router.post("/login")
 async def login(request: Request, data: LoginSchema):
@@ -65,7 +66,7 @@ async def login(request: Request, data: LoginSchema):
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=".sugampudasain.xyz",
+            domain=COOKIE_DOMAIN,
             max_age=3600,   # 1 hour
             path="/"
         )
@@ -75,7 +76,7 @@ async def login(request: Request, data: LoginSchema):
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=".sugampudasain.xyz",
+            domain=COOKIE_DOMAIN,
             max_age=30 * 24 * 3600,  # 30 days
             path="/"
         )

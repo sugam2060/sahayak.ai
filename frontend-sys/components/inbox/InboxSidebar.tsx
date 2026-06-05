@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -47,7 +48,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
 
-  const chats = data?.chats || [];
+  const chats = useMemo(() => data?.chats || [], [data?.chats]);
 
   // Compute dynamic platforms present in current conversations
   const dynamicPlatforms = useMemo(() => {
@@ -148,7 +149,7 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
             .toUpperCase()
             .slice(0, 2);
 
-          const hasUnseen = convo.messages.some((m: any) => m.direction === 'inbound' && !m.seen);
+          const hasUnseen = convo.messages.some((m: { direction: string; seen?: boolean }) => m.direction === 'inbound' && !m.seen);
 
           const isSelected = selectedChat?.platform === convo.platform && 
                              String(selectedChat?.senderId) === String(convo.user.sender_id);

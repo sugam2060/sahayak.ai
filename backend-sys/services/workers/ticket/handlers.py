@@ -20,7 +20,8 @@ def to_ticket_info(ticket: Ticket) -> service_pb2.TicketInfo:
         customer_phone=ticket.customer_phone or "",
         assigned_agent_id=str(ticket.assigned_agent_id) if ticket.assigned_agent_id else "",
         created_at=ticket.created_at.isoformat() if ticket.created_at else "",
-        updated_at=ticket.updated_at.isoformat() if ticket.updated_at else ""
+        updated_at=ticket.updated_at.isoformat() if ticket.updated_at else "",
+        customer_id=str(ticket.customer_id) if ticket.customer_id else ""
     )
 
 class TicketService(service_pb2_grpc.TicketServiceServicer):
@@ -37,6 +38,40 @@ class TicketService(service_pb2_grpc.TicketServiceServicer):
                 return service_pb2.CreateTicketResponse(success=False, message="Invalid priority.")
 
             async with SessionLocal() as db:
+                # Resolve or create Customer
+                from shared.database.schema.customers import Customer
+                from shared.database.schema.orders import PlatformType
+                
+                customer = None
+                if request.customer_id:
+                    try:
+                        c_id = UUID(request.customer_id)
+                        c_stmt = select(Customer).where(Customer.id == c_id, Customer.organization_id == org_id)
+                        c_res = await db.execute(c_stmt)
+                        customer = c_res.scalars().first()
+                    except ValueError:
+                        pass
+                
+                if not customer and request.customer_phone:
+                    c_stmt = select(Customer).where(
+                        Customer.organization_id == org_id,
+                        Customer.phone == request.customer_phone
+                    )
+                    c_res = await db.execute(c_stmt)
+                    customer = c_res.scalars().first()
+                
+                if not customer and (request.customer_name or request.customer_phone):
+                    customer = Customer(
+                        organization_id=org_id,
+                        name=request.customer_name or "Unknown Customer",
+                        phone=request.customer_phone or None,
+                        platform=PlatformType.CHATBOX,  # Default fallback
+                        external_id=request.customer_phone or request.customer_name or "unknown",
+                        social_media_details={}
+                    )
+                    db.add(customer)
+                    await db.flush() # get customer.id
+
                 ticket = Ticket(
                     organization_id=org_id,
                     title=request.title,
@@ -45,7 +80,8 @@ class TicketService(service_pb2_grpc.TicketServiceServicer):
                     priority=priority_enum,
                     customer_name=request.customer_name or None,
                     customer_phone=request.customer_phone or None,
-                    assigned_agent_id=agent_id
+                    assigned_agent_id=agent_id,
+                    customer_id=customer.id if customer else None
                 )
                 db.add(ticket)
                 await db.commit()

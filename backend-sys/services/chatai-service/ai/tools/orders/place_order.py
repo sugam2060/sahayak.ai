@@ -17,6 +17,7 @@ async def place_order(
     organization_id: Annotated[str, InjectedState("organization_id")],
     platform: Annotated[str, InjectedState("platform")],
     external_customer_id: Annotated[str, InjectedState("sender_id")],
+    customer_name: Annotated[str, InjectedState("customer_name")],
     items: list[dict],
     customer_phone: str = "",
     delivery_address: str = "",
@@ -28,6 +29,7 @@ async def place_order(
         organization_id: The organization's UUID (injected from state).
         platform: The platform name (injected from state).
         external_customer_id: The customer's platform-specific ID (injected from state).
+        customer_name: The customer's profile name (injected from state).
         items: List of items to order. Each item is a dict with 'product_id' (str) and 'quantity' (int).
         customer_phone: Customer's phone number if provided.
         delivery_address: Delivery address if provided.
@@ -53,6 +55,7 @@ async def place_order(
             delivery_address=delivery_address,
             currency=currency,
             items=order_items,
+            customer_name=customer_name
         )
         
         response = await order_stub.CreateOrder(request)

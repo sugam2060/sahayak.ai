@@ -35,7 +35,7 @@ def test_list_connectors_empty(test_client, override_db, mock_db_session):
     response = test_client.get("/connectors")
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert len(data) == 1  # telegram is listed as disconnected
+    assert len(data) == 2  # telegram and instagram are listed as disconnected
     assert all(c["status"] == "disconnected" for c in data)
 
 def test_list_connectors_with_active(test_client, override_db, mock_db_session):

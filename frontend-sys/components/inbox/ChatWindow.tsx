@@ -90,6 +90,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         });
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChat?.platform, selectedChat?.senderId, messages.length]);
 
   // Product card sharing states
@@ -670,6 +671,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         open={isCreateOrderOpen} 
         onOpenChange={setIsCreateOrderOpen} 
         selectedChat={selectedChat} 
+        customerName={chat?.user?.sender_name}
       />
 
       {/* Create Ticket Dialog Modal */}

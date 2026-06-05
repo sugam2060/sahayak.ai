@@ -255,6 +255,7 @@ message OrderInfo {
   repeated OrderItemInfo items = 13;
   int32 tax_amount = 14;
   int32 delivery_charge = 15;
+  string customer_id = 16;
 }
 
 message OrderItemCreateInput {
@@ -273,6 +274,7 @@ message CreateOrderRequest {
   repeated OrderItemCreateInput items = 8;
   int32 tax_percentage = 9;
   int32 delivery_charge = 10;
+  string customer_name = 11;
 }
 
 message CreateOrderResponse {
@@ -282,6 +284,7 @@ message CreateOrderResponse {
   string status = 4;
   string message = 5;
   string tracking_token = 6;
+  string customer_id = 7;
 }
 
 
@@ -336,6 +339,7 @@ message TicketInfo {
   string assigned_agent_id = 9;
   string created_at = 10;
   string updated_at = 11;
+  string customer_id = 12;
 }
 
 message CreateTicketRequest {
@@ -346,6 +350,7 @@ message CreateTicketRequest {
   string customer_name = 5;
   string customer_phone = 6;
   string assigned_agent_id = 7;
+  string customer_id = 8;
 }
 
 message CreateTicketResponse {

@@ -82,7 +82,7 @@ async def test_kafka_chat_worker_consume_inbound():
         assert update["$setOnInsert"]["organization_id"] == "test-org-123"
         assert update["$setOnInsert"]["bot_name"] == "TestBot"
         assert update["$setOnInsert"]["chat_id"] == 8888
-        assert update["$setOnInsert"]["user"]["sender_name"] == "Alice"
+        assert update["$set"]["user"]["sender_name"] == "Alice"
         assert update["$push"]["messages"]["text"] == "Hello bot"
         assert update["$push"]["messages"]["direction"] == "inbound"
         assert update["$push"]["messages"]["message_id"] == 1

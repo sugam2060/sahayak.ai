@@ -26,6 +26,7 @@ class AgentState(TypedDict):
     chat_id: str
     bot_name: str
     bot_token: str
+    customer_name: Optional[str]
     
     # AI configuration from organization_config_ai
     system_prompt: str
