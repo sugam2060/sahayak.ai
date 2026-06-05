@@ -84,6 +84,29 @@ CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="dqalfkroo")
 CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="132545484359525")
 CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="HUcNQXY96H_al0vqhqArwo_Lh7s")
 
+# LangSmith Configuration
+LANGSMITH_TRACING = config("LANGSMITH_TRACING", default="false").strip().strip('"').strip("'")
+LANGSMITH_ENDPOINT = config("LANGSMITH_ENDPOINT", default="https://api.smith.langchain.com").strip().strip('"').strip("'")
+LANGSMITH_API_KEY = config("LANGSMITH_API_KEY", default="").strip().strip('"').strip("'")
+LANGSMITH_PROJECT = config("LANGSMITH_PROJECT", default="Sahayak.ai").strip().strip('"').strip("'")
+
+# Map to standard LangChain environment variables for automatic tracing
+if LANGSMITH_TRACING.lower() == "true" and LANGSMITH_API_KEY and LANGSMITH_API_KEY != "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":
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGCHAIN_ENDPOINT"] = LANGSMITH_ENDPOINT
+    os.environ["LANGSMITH_ENDPOINT"] = LANGSMITH_ENDPOINT
+    os.environ["LANGCHAIN_API_KEY"] = LANGSMITH_API_KEY
+    os.environ["LANGSMITH_API_KEY"] = LANGSMITH_API_KEY
+    os.environ["LANGCHAIN_PROJECT"] = LANGSMITH_PROJECT
+    os.environ["LANGSMITH_PROJECT"] = LANGSMITH_PROJECT
+else:
+    # Explicitly disable tracing and clean up environment variables if api key is missing or placeholder
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+    os.environ["LANGSMITH_TRACING"] = "false"
+    os.environ.pop("LANGCHAIN_API_KEY", None)
+    os.environ.pop("LANGSMITH_API_KEY", None)
+
 
 
 

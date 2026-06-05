@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from shared.database.schema.organization_config_ai import OrganizationConfigAI
@@ -11,10 +11,12 @@ from shared.utils import get_db
 
 router = APIRouter(prefix="/api/ai-config")
 
+SYSTEM_PROMPT_MAX_LENGTH = 2000
+
 class AIConfigUpdate(BaseModel):
     ai_enabled: bool
     auto_order_enabled: bool
-    system_prompt: Optional[str] = ""
+    system_prompt: Optional[str] = Field(default="", max_length=SYSTEM_PROMPT_MAX_LENGTH)
     knowledge_base: Optional[str] = ""
 
 @router.get("")
@@ -79,18 +81,21 @@ async def update_ai_config(
         config_rec = res.scalar_one_or_none()
         
         if not config_rec:
+            # Truncate as safety net (Pydantic already validates max_length)
+            safe_prompt = (req.system_prompt or "")[:SYSTEM_PROMPT_MAX_LENGTH]
             config_rec = OrganizationConfigAI(
                 organization_id=org_id,
                 ai_enabled=req.ai_enabled,
                 auto_order_enabled=req.auto_order_enabled,
-                system_prompt=req.system_prompt,
+                system_prompt=safe_prompt,
                 knowledge_base=req.knowledge_base
             )
             db.add(config_rec)
         else:
+            safe_prompt = (req.system_prompt or "")[:SYSTEM_PROMPT_MAX_LENGTH]
             config_rec.ai_enabled = req.ai_enabled
             config_rec.auto_order_enabled = req.auto_order_enabled
-            config_rec.system_prompt = req.system_prompt
+            config_rec.system_prompt = safe_prompt
             config_rec.knowledge_base = req.knowledge_base
             
         await db.commit()

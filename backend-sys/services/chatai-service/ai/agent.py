@@ -103,12 +103,13 @@ async def run_agent(
     Returns:
         The AI agent's response text, or None if the agent shouldn't respond.
     """
+    logger.info(f"[Agent] run_agent: platform={platform}, sender={sender_id}, text={inbound_text!r:.80}")
     try:
         # 1. Fetch AI configuration
         ai_config = await _fetch_ai_config(org_id)
         
         if not ai_config["ai_enabled"]:
-            logger.debug(f"AI is disabled for org {org_id}. Skipping agent.")
+            logger.info(f"[Workflow] AI is disabled for org {org_id}. Skipping agent.")
             return None
         
         # 2. Initialize LLM
@@ -159,6 +160,7 @@ async def run_agent(
             "summarized_count": conv.get("summarized_count", 0) if conv else 0,
             "extra": kwargs,
         }
+        logger.info(f"[Agent] Invoking graph for thread {thread_id}")
         
         result = await graph.ainvoke(initial_state, config=config)
         
@@ -166,7 +168,7 @@ async def run_agent(
         response_text = _extract_final_response(result)
         
         if not response_text:
-            logger.warning("Agent produced no response text.")
+            logger.warning("[Workflow] Agent produced no response text.")
             return None
         
         # 6. Trigger memory compaction in background (don't block the response)

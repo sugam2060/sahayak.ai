@@ -27,11 +27,12 @@ def _should_continue(state: AgentState) -> str:
         return END
     last_message = messages[-1]
     
-    # If the LLM returned tool calls, continue to tool execution
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        tool_names = [tc["name"] for tc in last_message.tool_calls]
+        logger.info(f"[Edge] _should_continue -> tools ({tool_names})")
         return "tools"
     
-    # Otherwise, we're done — the agent has produced a final response
+    logger.info("[Edge] _should_continue -> END")
     return END
 
 
@@ -56,8 +57,10 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         The LLM will either produce a text response or tool call(s).
         """
         messages = state["messages"]
-        # Only pass the last 5 messages to the LLM to keep context window small and efficient
         recent_messages = messages[-5:] if len(messages) > 5 else messages
+        thread_id = f"{state.get('platform')}:{state.get('sender_id')}"
+        logger.info(f"[Node] agent triggered — thread={thread_id}, msgs={len(messages)}")
+        
         system_msg = build_system_message(
             system_prompt=state.get("system_prompt", ""),
             previous_summary=state.get("previous_summary"),
@@ -65,7 +68,9 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
             bot_name=state.get("bot_name", ""),
             auto_order_enabled=state.get("auto_order_enabled", False)
         )
+        
         response = await llm_with_tools.ainvoke([system_msg] + recent_messages)
+        
         response.additional_kwargs = {
             "direction": "outbound",
             "sender_id": 0,
@@ -75,14 +80,23 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         return {"messages": [response]}
     
     # Create the tool execution node using LangGraph's prebuilt ToolNode
-    tool_node = ToolNode(tools)
+    tool_node_prebuilt = ToolNode(tools)
+    
+    async def logging_tool_node(state: AgentState) -> dict:
+        logger.info("[Node] tools triggered")
+        try:
+            result = await tool_node_prebuilt.ainvoke(state)
+            return result
+        except Exception as e:
+            logger.error(f"[Node] tools failed: {e}", exc_info=True)
+            raise e
     
     # Build the graph
     graph = StateGraph(AgentState)
     
     # Add nodes
     graph.add_node("agent", agent_node)
-    graph.add_node("tools", tool_node)
+    graph.add_node("tools", logging_tool_node)
     
     # Set the entry point
     graph.set_entry_point("agent")

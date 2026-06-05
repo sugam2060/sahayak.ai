@@ -28,9 +28,53 @@ from .payment.initiate_refund import initiate_refund
 from .payment.get_refund_status import get_refund_status
 
 
+import functools
+import logging
+
+_tools_logger = logging.getLogger("chatai_service.ai.tools")
+
+
+def _wrap_tool(tool_obj):
+    """Wrap a single tool's invoke/ainvoke with diagnostic logging.
+    
+    Separate function to avoid the Python closure-over-loop-variable bug.
+    """
+    tool_name = tool_obj.name
+    tool_log = logging.getLogger(f"chatai_service.ai.tools.{tool_name}")
+
+    orig_ainvoke = tool_obj.ainvoke
+
+    @functools.wraps(orig_ainvoke)
+    async def wrapped_ainvoke(input, config=None, **kwargs):
+        tool_log.info(f"[Tool] {tool_name} called")
+        try:
+            res = await orig_ainvoke(input, config=config, **kwargs)
+            return res
+        except Exception as e:
+            tool_log.error(f"[Tool] {tool_name} failed: {e}", exc_info=True)
+            raise
+
+    object.__setattr__(tool_obj, 'ainvoke', wrapped_ainvoke)
+
+    orig_invoke = tool_obj.invoke
+
+    @functools.wraps(orig_invoke)
+    def wrapped_invoke(input, config=None, **kwargs):
+        tool_log.info(f"[Tool] {tool_name} called")
+        try:
+            res = orig_invoke(input, config=config, **kwargs)
+            return res
+        except Exception as e:
+            tool_log.error(f"[Tool] {tool_name} failed: {e}", exc_info=True)
+            raise
+
+    object.__setattr__(tool_obj, 'invoke', wrapped_invoke)
+    return tool_obj
+
+
 def get_all_tools() -> list:
     """Returns the complete list of tools available to the AI agent."""
-    return [
+    raw_tools = [
         # Orders
         place_order,
         get_order_details,
@@ -57,3 +101,5 @@ def get_all_tools() -> list:
         initiate_refund,
         get_refund_status,
     ]
+
+    return [_wrap_tool(t) for t in raw_tools]

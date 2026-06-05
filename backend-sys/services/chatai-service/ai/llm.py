@@ -8,14 +8,14 @@ from shared.config import NVIDIA_API_KEY
 
 logger = logging.getLogger("chatai_service.ai.llm")
 
-# Default model for agent reasoning (supports tool calling)
-DEFAULT_MODEL = "meta/llama-3.3-70b-instruct"
+# Default model for agent reasoning + tool calling (Nemotron-3 Super MoE: 120B total, 12B active — fast + powerful)
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
-# Lighter model for summarization tasks (faster, cheaper)
-SUMMARY_MODEL = "meta/llama-3.1-8b-instruct"
+# Lighter model for summarization tasks (Nemotron-3 Nano MoE: 30B total, 3B active — ultra-fast)
+SUMMARY_MODEL = "nvidia/nemotron-3-nano-30b-a3b"
 
 
-def get_llm(model: str = DEFAULT_MODEL, temperature: float = 0.5) -> ChatNVIDIA:
+def get_llm(model: str = DEFAULT_MODEL, temperature: float = 0.1) -> ChatNVIDIA:
     """
     Returns a NVIDIA AI LLM instance configured for the AI agent.
     
