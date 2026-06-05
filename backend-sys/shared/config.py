@@ -50,7 +50,6 @@ REFRESH_TOKEN_EXPIRE_DAYS = config("REFRESH_TOKEN_EXPIRE_DAYS", cast=int, defaul
 
 # Environment Configuration
 APP_ENV = config("APP_ENV", default="development")
-COOKIE_DOMAIN = None if APP_ENV == "development" else ".sugampudasain.xyz"
 
 # Instagram / Facebook Configuration
 INSTAGRAM_APP_ID = config("INSTAGRAM_APP_ID", default="")

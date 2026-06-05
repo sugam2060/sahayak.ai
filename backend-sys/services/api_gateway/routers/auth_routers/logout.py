@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from shared.proto import service_pb2
-from shared.config import COOKIE_DOMAIN
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -29,7 +28,7 @@ async def logout(request: Request):
     })
     
     # Securely remove tokens from the browser
-    response.delete_cookie(key="access_token", path="/", domain=COOKIE_DOMAIN)
-    response.delete_cookie(key="refresh_token", path="/", domain=COOKIE_DOMAIN)
+    response.delete_cookie(key="access_token", path="/")
+    response.delete_cookie(key="refresh_token", path="/")
     
     return response

@@ -5,7 +5,6 @@ from shared.proto import service_pb2
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 from fastapi.responses import JSONResponse
-from shared.config import COOKIE_DOMAIN
 
 @router.api_route("/refresh_token", methods=["GET", "POST"])
 async def refresh_token(
@@ -74,7 +73,6 @@ async def refresh_token(
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=COOKIE_DOMAIN,
             max_age=3600,   # 1 hour
             path="/"
         )
@@ -86,7 +84,6 @@ async def refresh_token(
             httponly=True,
             secure=True,  # Set to True in production (HTTPS)
             samesite="none",
-            domain=COOKIE_DOMAIN,
             max_age=30 * 24 * 3600,  # 30 days
             path="/"
         )
