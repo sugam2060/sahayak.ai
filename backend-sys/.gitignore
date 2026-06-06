@@ -9,6 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .env
+scratch
 
 deployment
 .agent
