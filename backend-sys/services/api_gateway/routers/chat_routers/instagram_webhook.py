@@ -148,7 +148,7 @@ async def process_instagram_media(messaging_event: dict, org_id: str) -> str | N
         return None
 
 
-async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_payload: dict, bot_token: str) -> None:
+async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_payload: dict, bot_token: str, db: AsyncSession) -> None:
     """Process a single DM messaging event and dispatch to Kafka."""
     sender_id = messaging_event.get("sender", {}).get("id")
     message = messaging_event.get("message", {})
@@ -174,6 +174,25 @@ async def _handle_dm(connector: PlatformConnector, messaging_event: dict, raw_pa
         return
     if not text and not has_media:
         return
+
+    # If the sender is a registered business page in our system, check if we are the customer
+    # of that business page (we ignore the message if so to prevent loop and double-saving)
+    sender_connector = await _load_connector_by_id(db, sender_id)
+    if sender_connector:
+        from shared.database.mongodb import MongoDBManager
+        mongo_db = MongoDBManager.get_db()
+        recipient_id = connector.platform_account_id
+        recipient_id_int = int(recipient_id) if str(recipient_id).isdigit() else None
+        sender_id_query = {"$in": [recipient_id, recipient_id_int]} if recipient_id_int is not None else recipient_id
+        
+        existing_conv = await mongo_db.conversations.find_one({
+            "platform": "instagram",
+            "organization_id": str(sender_connector.business_id),
+            "user.sender_id": sender_id_query
+        })
+        if existing_conv:
+            logger.info(f"[Webhook] Ignoring message from business page {sender_id} to page {connector.platform_account_id} as the sender is the seller in this thread.")
+            return
 
     # Process media if present
     media_url = None
@@ -324,7 +343,7 @@ async def instagram_webhook(request: Request, db: AsyncSession = Depends(get_db)
                     logger.error(f"[Webhook] Redis deduplication error: {e}")
 
             try:
-                await _handle_dm(connector, messaging_event, payload, bot_token)
+                await _handle_dm(connector, messaging_event, payload, bot_token, db)
             except Exception as e:
                 logger.error(f"[Webhook] Error processing DM: {e}", exc_info=True)
 
