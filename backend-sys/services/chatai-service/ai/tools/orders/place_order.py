@@ -61,11 +61,14 @@ async def place_order(
         response = await order_stub.CreateOrder(request)
         
         if response.success:
+            from shared.config import FRONTEND_URL
+            tracking_url = f"{FRONTEND_URL}/track-your-order/{response.tracking_token}"
             return (
                 f"Order placed successfully!\n"
                 f"Order ID: {response.order_id}\n"
                 f"Total Amount: {response.total_amount} {currency}\n"
                 f"Status: {response.status}\n"
+                f"Tracking Link: {tracking_url}\n"
                 f"Tracking Token: {response.tracking_token}"
             )
         else:

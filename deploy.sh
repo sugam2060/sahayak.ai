@@ -74,8 +74,8 @@ echo "=================================================="
 echo "Connecting to EC2 to pull and restart containers..."
 echo "=================================================="
 
-echo "--> Copying updated docker-compose.yml to remote server..."
-scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$DEVICES_DIR/docker-compose.yml" "ubuntu@$EC2_IP:/app/docker-compose.yml"
+# echo "--> Copying updated docker-compose.yml to remote server..."
+# scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$DEVICES_DIR/docker-compose.yml" "ubuntu@$EC2_IP:/app/docker-compose.yml"
 
 # SSH, bypass prompt, and run remote commands
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "ubuntu@$EC2_IP" << 'EOF'

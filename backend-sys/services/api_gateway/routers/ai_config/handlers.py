@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from shared.database.schema.organization_config_ai import OrganizationConfigAI
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/ai-config")
 class AIConfigUpdate(BaseModel):
     ai_enabled: bool
     auto_order_enabled: bool
-    system_prompt: Optional[str] = ""
+    system_prompt: Optional[str] = Field("", max_length=500)
     knowledge_base: Optional[str] = ""
 
 @router.get("")

@@ -81,6 +81,9 @@ async def get_chat_list(organization_id: Optional[str] = None):
         async for doc in cursor:
             # Convert ObjectId to string for JSON serialization
             doc["_id"] = str(doc["_id"])
+            # Remove large/binary checkpointer data to avoid serialization errors
+            doc.pop("checkpoint", None)
+            doc.pop("metadata", None)
             chats.append(doc)
         return {"success": True, "chats": chats}
     except Exception as e:
@@ -123,6 +126,9 @@ async def get_chat_history(
                 detail="Conversation not found."
             )
         doc["_id"] = str(doc["_id"])
+        # Remove large/binary checkpointer data to avoid serialization errors
+        doc.pop("checkpoint", None)
+        doc.pop("metadata", None)
         return {"success": True, "chat": doc}
     except HTTPException as he:
         raise he

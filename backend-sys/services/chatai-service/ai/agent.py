@@ -23,6 +23,7 @@ from .memory import (
     load_conversation_memory,
     maybe_summarize_and_compact,
     build_system_message,
+    extract_bot_name,
 )
 from .graph import build_agent_graph
 from .tools import get_all_tools
@@ -130,6 +131,21 @@ async def run_agent(
         })
         user_info = conv.get("user", {}) if conv else {}
         customer_name = user_info.get("sender_name") or user_info.get("sender_username") or ""
+        
+        # Extract bot name from the system prompt if mentioned, and update in conversation
+        extracted_bot_name = extract_bot_name(ai_config["system_prompt"], bot_name)
+        if conv and extracted_bot_name != conv.get("bot_name"):
+            from datetime import datetime, timezone
+            await mongo_db.conversations.update_one({
+                "platform": platform,
+                "user.sender_id": query_id
+            }, {
+                "$set": {
+                    "bot_name": extracted_bot_name,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            })
+        bot_name = extracted_bot_name
         
         # 4. Build system message
         system_msg = build_system_message(

@@ -46,12 +46,17 @@ async def create_support_ticket(
         
         if response.success and response.ticket:
             t = response.ticket
+            from shared.config import JWT_SECRET, FRONTEND_URL
+            from shared.utils import encrypt_token
+            tracking_token = encrypt_token(organization_id, t.id, JWT_SECRET)
+            tracking_url = f"{FRONTEND_URL}/track-your-ticket/{tracking_token}"
             return (
                 f"Support ticket created successfully!\n"
                 f"Ticket ID: {t.id}\n"
                 f"Title: {t.title}\n"
                 f"Status: {t.status}\n"
-                f"Priority: {t.priority}"
+                f"Priority: {t.priority}\n"
+                f"Tracking Link: {tracking_url}"
             )
         else:
             return f"Failed to create ticket: {response.message}"

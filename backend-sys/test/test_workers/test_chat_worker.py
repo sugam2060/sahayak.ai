@@ -186,3 +186,18 @@ async def test_kafka_chat_worker_consume_outbound():
         assert tg_url == "https://api.telegram.org/botmock-token/sendMessage"
         assert tg_json["chat_id"] == 8888
         assert tg_json["text"] == "Hello outbound reply"
+
+
+def test_extract_bot_name():
+    memory_module = importlib.import_module("services.chatai-service.ai.memory")
+    extract_bot_name = memory_module.extract_bot_name
+    
+    assert extract_bot_name("You are a friendly customer agent at Sahayak Shop named 'sugam_pudasaini'.", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("Your name is sugam_pudasaini.", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("You respond as sugam-pudasaini.", "DefaultBot") == "sugam-pudasaini"
+    assert extract_bot_name("name: sugam_pudasaini. Guidelines:...", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("named: sugam_pudasaini. Guidelines:...", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("name is sugam_pudasaini.", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("called sugam_pudasaini.", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("respond as sugam_pudasaini.", "DefaultBot") == "sugam_pudasaini"
+    assert extract_bot_name("Just some system prompt without any bot name.", "DefaultBot") == "DefaultBot"

@@ -336,13 +336,19 @@ export default function AIConfigPage() {
 
           {/* System Prompt */}
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm space-y-4">
-            <label className="text-lg font-semibold text-zinc-900 dark:text-white block border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              System Agent Instructions
-            </label>
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <label className="text-lg font-semibold text-zinc-900 dark:text-white block">
+                System Agent Instructions
+              </label>
+              <span className={`text-xs font-semibold ${systemPrompt.length >= 450 ? 'text-red-500' : 'text-zinc-400'}`}>
+                {systemPrompt.length}/500 chars
+              </span>
+            </div>
             <textarea
               rows={6}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
+              maxLength={500}
               placeholder="Example: You are a friendly customer agent at Sahayak Shop. Help customers place orders, answer product queries, and resolve shipping issues."
               className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-transparent p-3 text-sm transition-colors outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:bg-zinc-800/30"
             />

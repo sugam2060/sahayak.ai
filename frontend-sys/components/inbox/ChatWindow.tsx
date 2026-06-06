@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ProductShareModal } from './ProductShareModal';
 import { CreateOrderModal } from './CreateOrderModal';
 import { CreateTicketModal } from './CreateTicketModal';
+import ReactMarkdown from 'react-markdown';
 
 const EmojiPicker = dynamic(
   () => import('emoji-picker-react').then((mod) => mod.default),
@@ -35,24 +36,35 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 const renderMessageText = (text: string) => {
-  const urlRegex = /(https?:\/\/[^\s]+)/gi;
-  const parts = text.split(urlRegex);
-  return parts.map((part, index) => {
-    if (part.match(urlRegex)) {
-      return (
-        <a
-          key={index}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-indigo-600 hover:text-indigo-800 underline font-semibold break-all"
-        >
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
+  if (!text) return null;
+  return (
+    <ReactMarkdown
+      components={{
+        p: ({ children }) => <p className="whitespace-pre-wrap mb-1 text-slate-700 dark:text-slate-300">{children}</p>,
+        strong: ({ children }) => <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-indigo-600 hover:text-indigo-800 underline font-semibold break-all"
+          >
+            {children}
+          </a>
+        ),
+        ul: ({ children }) => <ul className="list-disc pl-5 my-1 space-y-0.5 text-slate-700 dark:text-slate-300">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-5 my-1 space-y-0.5 text-slate-700 dark:text-slate-300">{children}</ol>,
+        li: ({ children }) => <li className="my-0.5">{children}</li>,
+        h1: ({ children }) => <h1 className="font-bold text-slate-900 dark:text-white text-lg my-2">{children}</h1>,
+        h2: ({ children }) => <h2 className="font-bold text-slate-900 dark:text-white text-base my-2">{children}</h2>,
+        h3: ({ children }) => <h3 className="font-bold text-slate-900 dark:text-white text-sm my-2">{children}</h3>,
+        h4: ({ children }) => <h4 className="font-bold text-slate-900 dark:text-white text-xs my-2">{children}</h4>,
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
 };
 
 const parseDate = (dateStr: string) => {
