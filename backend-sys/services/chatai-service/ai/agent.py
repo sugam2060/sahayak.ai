@@ -132,6 +132,28 @@ async def run_agent(
         user_info = conv.get("user", {}) if conv else {}
         customer_name = user_info.get("sender_name") or user_info.get("sender_username") or ""
         
+        # Fetch customer details from PostgreSQL to inject in system prompt
+        customer_phone = None
+        customer_address = None
+        try:
+            from shared.database.schema.customers import Customer
+            from shared.database.schema.orders import PlatformType
+            
+            platform_enum = PlatformType(platform.lower())
+            async with SessionLocal() as session:
+                cust_stmt = select(Customer).where(
+                    Customer.organization_id == UUID(org_id),
+                    Customer.platform == platform_enum,
+                    Customer.external_id == str(sender_id)
+                )
+                cust_res = await session.execute(cust_stmt)
+                cust = cust_res.scalars().first()
+                if cust:
+                    customer_phone = cust.phone
+                    customer_address = cust.delivery_address
+        except Exception as e:
+            logger.error(f"Error fetching customer from PostgreSQL: {e}", exc_info=True)
+
         # Extract bot name from the system prompt if mentioned, and update in conversation
         extracted_bot_name = extract_bot_name(ai_config["system_prompt"], bot_name)
         if conv and extracted_bot_name != conv.get("bot_name"):
@@ -153,7 +175,9 @@ async def run_agent(
             previous_summary=previous_summary,
             platform=platform,
             bot_name=bot_name,
-            auto_order_enabled=ai_config["auto_order_enabled"]
+            auto_order_enabled=ai_config["auto_order_enabled"],
+            customer_phone=customer_phone,
+            customer_address=customer_address
         )
         
         # 5. Build the current inbound message

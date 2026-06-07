@@ -1,8 +1,7 @@
-"""
-Tool: Place a new order for the customer via gRPC.
-"""
 import json
 import logging
+import uuid
+import grpc
 from typing import Annotated
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
@@ -36,6 +35,20 @@ async def place_order(
         currency: Currency code (default: NPR).
     """
     try:
+        # Validate that each product_id is a valid UUID format
+        for item in items:
+            prod_id = item.get("product_id")
+            if not prod_id:
+                return "Error: Missing 'product_id' in order items."
+            try:
+                uuid.UUID(str(prod_id))
+            except ValueError:
+                return (
+                    f"Error: The product ID '{prod_id}' is not in a valid UUID format. "
+                    f"You must search for the product using search_products first to get the correct UUID. "
+                    f"Do NOT guess, mock, or prepend 'prod_' to product IDs."
+                )
+
         order_stub, _, _ = WorkersGRPCClient.get_stubs()
         
         order_items = [
@@ -73,6 +86,10 @@ async def place_order(
             )
         else:
             return f"Failed to place order: {response.message}"
+    except grpc.RpcError as e:
+        details = e.details() if hasattr(e, "details") else str(e)
+        logger.error(f"gRPC error placing order: {details}")
+        return f"Failed to place order: {details}"
     except Exception as e:
         logger.error(f"Error placing order: {e}", exc_info=True)
         return f"Error placing order: {str(e)}"

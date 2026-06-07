@@ -6,6 +6,33 @@ from .base_handler import BasePlatformHandler
 
 logger = logging.getLogger("chatai_service.handlers.instagram")
 
+def split_message(text: str, limit: int = 950) -> list[str]:
+    """Split a message into chunks of at most limit characters, trying to split on newlines or spaces."""
+    if not text:
+        return []
+    if len(text) <= limit:
+        return [text]
+    
+    chunks = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        
+        # Try to find a good split point in the first 'limit' characters
+        split_idx = text.rfind('\n', 0, limit)
+        if split_idx == -1:
+            split_idx = text.rfind(' ', 0, limit)
+            
+        if split_idx == -1 or split_idx == 0:
+            # Force split if no space or newline is found
+            split_idx = limit
+            
+        chunks.append(text[:split_idx])
+        text = text[split_idx:].lstrip()
+        
+    return chunks
+
 class InstagramPlatformHandler(BasePlatformHandler):
     def __init__(self):
         super().__init__(platform="instagram")
@@ -241,17 +268,30 @@ class InstagramPlatformHandler(BasePlatformHandler):
         instagram_endpoint = f"https://graph.instagram.com/v25.0/{ig_account_id}/messages"
         try:
             async with httpx.AsyncClient() as client:
-                payload = {
-                    "recipient": {"id": sender_id},
-                    "message": {"text": text}
-                }
                 if image_url:
-                    payload["message"] = {"attachment": {"type": "image", "payload": {"url": image_url}}}
-                logger.info(f"Sending Instagram DM reply to user {sender_id} via Graph API.")
-                resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=5.0)
-                if resp.status_code == 200:
-                    logger.debug("Successfully sent Instagram DM reply.")
-                else:
-                    logger.error(f"Failed to send Instagram DM reply: {resp.status_code} - {resp.text}")
+                    payload = {
+                        "recipient": {"id": sender_id},
+                        "message": {"attachment": {"type": "image", "payload": {"url": image_url}}}
+                    }
+                    logger.info(f"Sending Instagram image attachment to user {sender_id} via Graph API.")
+                    resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=5.0)
+                    if resp.status_code == 200:
+                        logger.debug("Successfully sent Instagram image attachment.")
+                    else:
+                        logger.error(f"Failed to send Instagram image attachment: {resp.status_code} - {resp.text}")
+
+                if text:
+                    chunks = split_message(text, limit=950)
+                    for idx, chunk in enumerate(chunks):
+                        payload = {
+                            "recipient": {"id": sender_id},
+                            "message": {"text": chunk}
+                        }
+                        logger.info(f"Sending Instagram DM reply chunk {idx+1}/{len(chunks)} to user {sender_id} via Graph API.")
+                        resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=5.0)
+                        if resp.status_code == 200:
+                            logger.debug(f"Successfully sent Instagram DM reply chunk {idx+1}.")
+                        else:
+                            logger.error(f"Failed to send Instagram DM reply chunk {idx+1}: {resp.status_code} - {resp.text}")
         except Exception as e:
             logger.error(f"Network error sending Instagram DM reply: {str(e)}")

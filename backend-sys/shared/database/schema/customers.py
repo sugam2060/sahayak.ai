@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, ForeignKey, text, Enum, Index
+from sqlalchemy import String, DateTime, ForeignKey, text, Enum, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from shared.database.schema.base import Base
 from shared.database.schema.orders import PlatformType
@@ -24,8 +24,9 @@ class Customer(Base):
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
     
     name: Mapped[str] = mapped_column(String(255))
-    phone: Mapped[str] = mapped_column(String(10), nullable=True)
+    phone: Mapped[str] = mapped_column(String(20), nullable=True)
     email: Mapped[str] = mapped_column(String(255), nullable=True)
+    delivery_address: Mapped[str] = mapped_column(Text, nullable=True)
     
     platform: Mapped[PlatformType] = mapped_column(Enum(PlatformType))
     external_id: Mapped[str] = mapped_column(String(255))

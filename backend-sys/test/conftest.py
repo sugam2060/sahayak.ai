@@ -4,6 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from shared.proto import service_pb2
 
+# Override COOKIE_DOMAIN for tests so that TestClient accepts auth cookies
+import shared.config
+shared.config.COOKIE_DOMAIN = None
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""

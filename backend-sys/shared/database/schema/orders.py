@@ -40,7 +40,7 @@ class Order(Base):
     
     platform: Mapped[PlatformType] = mapped_column(Enum(PlatformType))
     external_customer_id: Mapped[str] = mapped_column(String(255), nullable=True)
-    customer_phone: Mapped[str] = mapped_column(String(10), nullable=True)
+    customer_phone: Mapped[str] = mapped_column(String(20), nullable=True)
     delivery_address: Mapped[str] = mapped_column(Text, nullable=True)
     
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.PENDING)

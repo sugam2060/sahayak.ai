@@ -56,9 +56,9 @@ async def search_knowledge_base(
         )
         
         if not results or not results.get("result", {}).get("hits"):
-            # Fallback: try without namespace filtering
+            # Fallback: try default namespace
             results = index.search(
-                namespace="",
+                namespace="__default__",
                 query={
                     "top_k": 5,
                     "inputs": {"text": query},
@@ -77,7 +77,7 @@ async def search_knowledge_base(
             fields = hit.get("fields", {})
             text = fields.get("text", fields.get("chunk_text", ""))
             score = hit.get("_score", 0)
-            if text and score > 0.3:  # Relevance threshold
+            if text and score > 0.15:  # Relevance threshold adjusted for e5 embeddings
                 context_parts.append(f"[{i}] {text}")
         
         if not context_parts:

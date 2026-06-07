@@ -66,7 +66,15 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 return service_pb2.CreateOrderResponse(success=False, message="Order must contain at least one item.")
 
-            product_ids = [UUID(item.product_id) for item in request.items]
+            try:
+                product_ids = [UUID(item.product_id) for item in request.items]
+            except ValueError:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                return service_pb2.CreateOrderResponse(
+                    success=False,
+                    message="Invalid product ID format. Product ID must be a valid UUID. Please search for the product first."
+                )
+
             async with SessionLocal() as db:
                 # Check if agent exists in the users table to avoid foreign key violation
                 from shared.database.schema.users import User
@@ -141,6 +149,23 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                 customer_res = await db.execute(customer_stmt)
                 customer = customer_res.scalars().first()
                 
+                # Determine fallback values from database if request values are missing/empty
+                final_phone = request.customer_phone or (customer.phone if customer else None)
+                final_address = request.delivery_address or (customer.delivery_address if customer else None)
+
+                # Validate required customer fields
+                if not final_phone or not final_address:
+                    missing = []
+                    if not final_phone:
+                        missing.append("phone number")
+                    if not final_address:
+                        missing.append("delivery address")
+                    context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                    return service_pb2.CreateOrderResponse(
+                        success=False,
+                        message=f"Missing customer info: {' and '.join(missing)}."
+                    )
+
                 customer_name = request.customer_name or f"{request.platform.capitalize()} Customer"
                 if not customer:
                     customer = Customer(
@@ -148,15 +173,18 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                         platform=platform_enum,
                         external_id=request.external_customer_id,
                         name=customer_name,
-                        phone=request.customer_phone if request.customer_phone else None,
+                        phone=final_phone,
+                        delivery_address=final_address,
                         social_media_details={}
                     )
                     db.add(customer)
                     await db.flush() # get customer.id
                 else:
-                    # Update phone or name if not set
-                    if request.customer_phone and not customer.phone:
+                    # Update phone or delivery address if provided in request
+                    if request.customer_phone:
                         customer.phone = request.customer_phone
+                    if request.delivery_address:
+                        customer.delivery_address = request.delivery_address
                     if request.customer_name and (customer.name == f"{request.platform.capitalize()} Customer" or not customer.name):
                         customer.name = request.customer_name
                     await db.flush()
@@ -165,8 +193,8 @@ class OrderService(service_pb2_grpc.OrderServiceServicer):
                     organization_id=org_id,
                     platform=platform_enum,
                     external_customer_id=request.external_customer_id if request.external_customer_id else None,
-                    customer_phone=request.customer_phone if request.customer_phone else None,
-                    delivery_address=request.delivery_address if request.delivery_address else None,
+                    customer_phone=final_phone,
+                    delivery_address=final_address,
                     status=OrderStatus.PENDING,
                     total_amount=total_amount,
                     currency=request.currency if request.currency else "NPR",

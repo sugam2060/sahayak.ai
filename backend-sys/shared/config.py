@@ -28,6 +28,15 @@ AUTH_SERVICE_ADDR = config("AUTH_SERVICE_ADDR", default="localhost:50051")
 CHATAI_SERVICE_ADDR = config("CHATAI_SERVICE_ADDR", default="localhost:50052")
 WORKERS_SERVICE_ADDR = config("WORKERS_SERVICE_ADDR", default="localhost:50053")
 
+# Auto-resolve localhost/127.0.0.1 to Docker bridge network hostnames when running in Docker
+if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
+    if "localhost" in AUTH_SERVICE_ADDR or "127.0.0.1" in AUTH_SERVICE_ADDR:
+        AUTH_SERVICE_ADDR = AUTH_SERVICE_ADDR.replace("localhost", "auth_service").replace("127.0.0.1", "auth_service")
+    if "localhost" in CHATAI_SERVICE_ADDR or "127.0.0.1" in CHATAI_SERVICE_ADDR:
+        CHATAI_SERVICE_ADDR = CHATAI_SERVICE_ADDR.replace("localhost", "chatai_service").replace("127.0.0.1", "chatai_service")
+    if "localhost" in WORKERS_SERVICE_ADDR or "127.0.0.1" in WORKERS_SERVICE_ADDR:
+        WORKERS_SERVICE_ADDR = WORKERS_SERVICE_ADDR.replace("localhost", "workers").replace("127.0.0.1", "workers")
+
 
 # Gateway
 GATEWAY_PORT = config("GATEWAY_PORT", cast=int, default=8000)
