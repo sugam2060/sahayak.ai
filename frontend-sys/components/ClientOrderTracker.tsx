@@ -183,7 +183,7 @@ export function ClientOrderTracker({ initialOrder, token }: ClientOrderTrackerPr
     );
   }
 
-  const itemsTotal = (order.total_amount - (order.tax_amount || 0) - (order.delivery_charge || 0)) / 100;
+  const itemsTotal = order.total_amount - (order.tax_amount || 0) - (order.delivery_charge || 0);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 relative z-10 text-slate-800 font-sans print:bg-white print:p-0">
@@ -247,7 +247,7 @@ export function ClientOrderTracker({ initialOrder, token }: ClientOrderTrackerPr
               <div className="bg-slate-50 border border-slate-100 px-5 py-3 rounded-2xl text-left sm:text-right min-w-[150px]">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Paid</span>
                 <span className="text-2xl font-black text-indigo-650 tracking-tight">
-                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(order.total_amount / 100)}
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(order.total_amount)}
                 </span>
               </div>
             </div>
@@ -406,10 +406,10 @@ export function ClientOrderTracker({ initialOrder, token }: ClientOrderTrackerPr
 
                   <div className="text-right">
                     <span className="text-xs font-black text-slate-900 block">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format((item.unit_price * item.quantity) / 100)}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(item.unit_price * item.quantity)}
                     </span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                      {item.quantity} × {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(item.unit_price / 100)}
+                      {item.quantity} × {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(item.unit_price)}
                     </span>
                   </div>
                 </div>
@@ -433,7 +433,7 @@ export function ClientOrderTracker({ initialOrder, token }: ClientOrderTrackerPr
                 <span>Estimated Tax (VAT)</span>
                 <span>
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(
-                    (order.tax_amount || 0) / 100
+                    order.tax_amount || 0
                   )}
                 </span>
               </div>
@@ -443,7 +443,7 @@ export function ClientOrderTracker({ initialOrder, token }: ClientOrderTrackerPr
                 <span>
                   {order.delivery_charge && order.delivery_charge > 0 ? (
                     new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(
-                      order.delivery_charge / 100
+                      order.delivery_charge
                     )
                   ) : (
                     <span className="text-emerald-600 font-black uppercase text-[10px] tracking-wider">Free Shipping</span>
@@ -455,7 +455,7 @@ export function ClientOrderTracker({ initialOrder, token }: ClientOrderTrackerPr
                 <span>Grand Total Paid</span>
                 <span className="text-indigo-600 tracking-tight">
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(
-                    order.total_amount / 100
+                    order.total_amount
                   )}
                 </span>
               </div>

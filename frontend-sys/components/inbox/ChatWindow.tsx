@@ -733,7 +733,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                   {new Intl.NumberFormat('en-US', {
                     style: 'currency',
                     currency: selectedProductForCard.currency,
-                  }).format(selectedProductForCard.price / 100)}
+                  }).format(selectedProductForCard.price)}
                 </span>
                 <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-sm font-bold border border-indigo-100">
                   Quick Details

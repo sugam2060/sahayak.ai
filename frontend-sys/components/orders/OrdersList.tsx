@@ -145,7 +145,7 @@ export const OrdersList = () => {
                         {date}
                       </td>
                       <td className="p-4 font-extrabold text-slate-800">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(order.total_amount / 100)}
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(order.total_amount)}
                       </td>
                       <td className="p-4">
                         <OrderStatusDropdown id={order.id} status={order.status} />

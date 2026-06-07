@@ -260,7 +260,7 @@ export const OrderDetail = ({ id }: OrderDetailProps) => {
                   <div className="text-left sm:text-right">
                     <span className="text-[10px] font-bold text-slate-400 block sm:hidden">Price</span>
                     <span className="text-xs font-medium text-slate-500">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(item.unit_price / 100)} each
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(item.unit_price)} each
                     </span>
                   </div>
 
@@ -274,7 +274,7 @@ export const OrderDetail = ({ id }: OrderDetailProps) => {
                   <div className="text-right min-w-[80px]">
                     <span className="text-[10px] font-bold text-slate-400 block sm:hidden">Subtotal</span>
                     <span className="text-sm font-extrabold text-indigo-600">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format((item.unit_price * item.quantity) / 100)}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(item.unit_price * item.quantity)}
                     </span>
                   </div>
                 </div>
@@ -286,7 +286,7 @@ export const OrderDetail = ({ id }: OrderDetailProps) => {
           <div className="bg-slate-50/50 p-6 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Grand Total</span>
             <span className="text-lg font-black text-indigo-600">
-              {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(order.total_amount / 100)}
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency }).format(order.total_amount)}
             </span>
           </div>
         </div>

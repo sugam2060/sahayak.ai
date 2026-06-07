@@ -124,7 +124,7 @@ export const ProductShareModal = ({ open, onOpenChange, onSelect }: ProductShare
 
                 <div className="text-right">
                   <div className="text-xs font-bold text-indigo-600">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: p.currency }).format(p.price / 100)}
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: p.currency }).format(p.price)}
                   </div>
                   <div className="text-[9px] text-slate-400 mt-0.5">Stock: {p.stock}</div>
                 </div>
