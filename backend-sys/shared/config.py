@@ -94,5 +94,27 @@ CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="132545484359525")
 CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="HUcNQXY96H_al0vqhqArwo_Lh7s")
 
 
+# Programmatically ensure LANGCHAIN tracing environment variables are correctly populated for LangSmith.
+# This handles legacy/alternative names and strips any quotes introduced during env parsing.
+for prefix in ["LANGCHAIN", "LANGSMITH"]:
+    tracing_enabled = config(f"{prefix}_TRACING_V2", default=None) or config(f"{prefix}_TRACING", default=None)
+    if tracing_enabled and str(tracing_enabled).lower() in ("true", "1"):
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        
+        api_key = config("LANGCHAIN_API_KEY", default=None) or config("LANGSMITH_API_KEY", default=None)
+        if api_key:
+            os.environ["LANGCHAIN_API_KEY"] = str(api_key).strip('"\'')
+            
+        endpoint = config("LANGCHAIN_ENDPOINT", default=None) or config("LANGSMITH_ENDPOINT", default=None)
+        if endpoint:
+            os.environ["LANGCHAIN_ENDPOINT"] = str(endpoint).strip('"\'')
+            
+        project = config("LANGCHAIN_PROJECT", default=None) or config("LANGSMITH_PROJECT", default=None)
+        if project:
+            os.environ["LANGCHAIN_PROJECT"] = str(project).strip('"\'')
+        break
+
+
+
 
 

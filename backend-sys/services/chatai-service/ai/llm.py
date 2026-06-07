@@ -37,9 +37,12 @@ def get_llm(model: str = DEFAULT_MODEL, temperature: float = 0.5) -> ChatNVIDIA:
     
     # Only add reasoning parameters if using deepseek-r1 or models that support reasoning
     if "deepseek-r1" in model or "nemotron-3-super-120b" in model:
-        kwargs["max_tokens"] = 16384
-        kwargs["reasoning_budget"] = 16384
-        kwargs["chat_template_kwargs"] = {"enable_thinking": True}
+        kwargs["top_p"] = 0.95
+        kwargs["max_completion_tokens"] = 16384
+        kwargs["model_kwargs"] = {
+            "reasoning_budget": 16384,
+            "chat_template_kwargs": {"enable_thinking": True}
+        }
         
     return ChatNVIDIA(**kwargs)
 
