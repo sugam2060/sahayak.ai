@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, ForeignKey, text, Text, Index
+from sqlalchemy import String, DateTime, ForeignKey, text, Text, Index, JSON
 from shared.database.schema.base import Base
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -18,8 +18,10 @@ class Team(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
     
-    name: Mapped[str] = mapped_column(String(255))
+    team_name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, nullable=True)
+    role: Mapped[str] = mapped_column(String(100), default="AGENT")
+    permissions: Mapped[list[str]] = mapped_column(JSON, default=list, server_default=text("'[]'::json"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"))
 
     # Relationships
@@ -31,11 +33,11 @@ class TeamMember(Base):
 
     __table_args__ = (
         Index("idx_team_members_team_user", "team_id", "user_id"),
-        Index("idx_team_members_user_id", "user_id"),
+        Index("idx_team_members_user_id", "user_id", unique=True),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4, server_default=text("gen_random_uuid()"))
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     team_id: Mapped[UUID] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String(50), default="member")
 

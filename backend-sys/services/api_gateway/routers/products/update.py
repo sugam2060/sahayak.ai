@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import Optional
 
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 
 router = APIRouter(prefix="/api/products")
 
@@ -20,7 +20,7 @@ async def update_product(
     is_active: Optional[bool] = Form(None),
     clear_image: Optional[bool] = Form(False),
     image_file: Optional[UploadFile] = File(None),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("products"))
 ):
     try:
         image_bytes = b""

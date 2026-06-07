@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from uuid import UUID
 
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 
 router = APIRouter(prefix="/api/products")
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/products")
 async def delete_product(
     product_id: UUID,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("products"))
 ):
     try:
         grpc_req = service_pb2.DeleteProductRequest(

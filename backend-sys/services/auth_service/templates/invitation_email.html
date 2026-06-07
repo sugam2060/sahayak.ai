@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .header {
+            background-color: #4f46e5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+            line-height: 1.6;
+            color: #374151;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4f46e5;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .credentials {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-family: monospace;
+            border-left: 4px solid #4f46e5;
+            font-size: 14px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #9ca3af;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Workspace Invitation</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{{full_name}}</strong>,</p>
+            <p>You have been invited to join your team's workspace on <strong>{{org_name}}</strong>! Your account has been pre-created. Here are your temporary login credentials:</p>
+            <div class="credentials">
+                <strong>Email:</strong> {{email}}<br/>
+                <strong>Temporary Password:</strong> {{temporary_password}}
+            </div>
+            <p>To accept the invitation and activate your account, please verify your email address by clicking the button below:</p>
+            <div style="text-align: center;">
+                <a href="{{verify_link}}" class="button">Accept Invitation & Verify Email</a>
+            </div>
+            <p style="margin-top: 20px; font-size: 13px; color: #6b7280;">
+                For security reasons, we strongly recommend changing your password immediately after logging in.
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Sahayak. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -12,6 +12,7 @@ def mock_mongo_db():
         yield mock_db
 
 def test_get_chat_list(test_client, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
     chats_data = [
         {"_id": "60c72b2f9b1d8e1f5c8b4567", "organization_id": "org_1", "platform": "telegram"},
         {"_id": "60c72b2f9b1d8e1f5c8b4568", "organization_id": "org_1", "platform": "telegram"}
@@ -44,6 +45,7 @@ def test_get_chat_history_found(test_client, override_chats_db, mock_db_session,
     from uuid import UUID
     mock_user = User(
         id=UUID("22222222-3333-4444-5555-666666666666"),
+        organization_id=UUID("11111111-2222-3333-4444-555555555555"),
         role=UserRole.OWNER
     )
     mock_result = MagicMock()
@@ -52,7 +54,7 @@ def test_get_chat_history_found(test_client, override_chats_db, mock_db_session,
 
     mock_conversation = {
         "_id": "60c72b2f9b1d8e1f5c8b4567",
-        "organization_id": "org_1",
+        "organization_id": "11111111-2222-3333-4444-555555555555",
         "platform": "telegram",
         "user": {"sender_id": 9999, "sender_name": "Alice"},
         "messages": []
@@ -98,13 +100,14 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
     from uuid import UUID
     mock_user = User(
         id=UUID("22222222-3333-4444-5555-666666666666"),
+        organization_id=UUID("11111111-2222-3333-4444-555555555555"),
         role=UserRole.OWNER
     )
 
     # 1. Mock conversation retrieval in MongoDB
     mock_conversation = {
         "_id": "60c72b2f9b1d8e1f5c8b4567",
-        "organization_id": "46a42f39-5876-49e2-84b0-725f0733e178",
+        "organization_id": "11111111-2222-3333-4444-555555555555",
         "platform": "telegram",
         "chat_id": 8888,
         "user": {"sender_id": 9999}
@@ -113,7 +116,7 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
     
     # 2. Mock connector retrieval in PostgreSQL
     mock_connector = PlatformConnector(
-        business_id="46a42f39-5876-49e2-84b0-725f0733e178",
+        business_id="11111111-2222-3333-4444-555555555555",
         platform="telegram",
         tokens={"bot_token": "123456:ABC-DEF-GHI"}
     )
@@ -141,7 +144,7 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
         assert response.json()["success"] is True
         
         mock_route.assert_called_once_with(
-            org_id="46a42f39-5876-49e2-84b0-725f0733e178",
+            org_id="11111111-2222-3333-4444-555555555555",
             bot_name=None,
             bot_token="123456:ABC-DEF-GHI",
             platform="telegram",
@@ -152,9 +155,10 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
         )
 
 def test_toggle_ai_success(test_client, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
     mock_conversation = {
         "_id": "60c72b2f9b1d8e1f5c8b4567",
-        "organization_id": "46a42f39-5876-49e2-84b0-725f0733e178",
+        "organization_id": "11111111-2222-3333-4444-555555555555",
         "platform": "telegram",
         "chat_id": 8888,
         "user": {"sender_id": 9999}

@@ -26,6 +26,7 @@ from services.api_gateway.routers.chat_routers import telegram_webhook_router, c
 from services.api_gateway.routers import products, orders
 from services.api_gateway.routers.ai_config import router as ai_config_router
 from services.api_gateway.routers.ticket import router as ticket_router
+from services.api_gateway.routers.teams import router as teams_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -101,6 +102,7 @@ app.include_router(products.router)
 app.include_router(orders.router)
 app.include_router(ai_config_router)
 app.include_router(ticket_router)
+app.include_router(teams_router)
 
 @app.get("/health")
 async def health_check():

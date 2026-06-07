@@ -44,6 +44,15 @@ async def login(request: Request, data: LoginSchema):
                 detail=grpc_response.message
             )
             
+        # Decode access token to retrieve user role
+        import jwt
+        from shared.config import JWT_SECRET, JWT_ALGORITHM
+        try:
+            decoded = jwt.decode(grpc_response.access_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            user_role = decoded.get("role", "AGENT")
+        except Exception:
+            user_role = "AGENT"
+
         # Create response object
         content = {
             "success": True,
@@ -54,7 +63,8 @@ async def login(request: Request, data: LoginSchema):
             "full_name": grpc_response.full_name,
             "organization_name": grpc_response.organization_name,
             "organization_slug": grpc_response.organization_slug,
-            "email": grpc_response.email
+            "email": grpc_response.email,
+            "role": user_role
         }
         
         response = JSONResponse(content=content)

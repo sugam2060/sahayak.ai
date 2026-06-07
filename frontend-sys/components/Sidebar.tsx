@@ -24,22 +24,37 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useAuthStore } from '@/store/authStore';
 
 export const Sidebar = () => {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+  const userRole = user?.role?.toUpperCase();
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
-    { name: 'Inbox', icon: MessageSquare, href: '/inbox' },
-    { name: 'Orders', icon: Package, href: '/orders' },
-    { name: 'Tickets', icon: Ticket, href: '/ticket' },
-    { name: 'Products', icon: RiBox3Line, href: '/products' },
-    { name: 'Connectors', icon: RiPlugLine, href: '/connectors' },
-    { name: 'AI Configuration', icon: RiRobot2Line, href: '/ai-config' },
-    { name: 'Team Management', icon: RiTeamLine, href: '/team' },
+    { name: 'Inbox', icon: MessageSquare, href: '/inbox', permission: 'chats' },
+    { name: 'Orders', icon: Package, href: '/orders', permission: 'orders' },
+    { name: 'Tickets', icon: Ticket, href: '/ticket', permission: 'tickets' },
+    { name: 'Products', icon: RiBox3Line, href: '/products', permission: 'products' },
+    { name: 'Connectors', icon: RiPlugLine, href: '/connectors', permission: 'connectors' },
+    { name: 'AI Configuration', icon: RiRobot2Line, href: '/ai-config', permission: 'ai_config' },
+    { name: 'Team Management', icon: RiTeamLine, href: '/team', permission: 'teams' },
     { name: 'User Profile', icon: RiUser3Line, href: '/profile' },
     { name: 'Analytics', icon: RiBarChartGroupedLine, href: '/analytics' },
   ];
+
+  const filteredMenuItems = menuItems.filter(item => {
+    if (!user) return false;
+    if (userRole === 'OWNER') {
+      return true;
+    }
+    if (item.permission) {
+      const userPermissions = user?.permissions || [];
+      return userPermissions.includes(item.permission);
+    }
+    return true;
+  });
 
   const bottomItems = [
     { name: 'Help', icon: HelpCircle, href: '/help' },
@@ -50,7 +65,7 @@ export const Sidebar = () => {
     <aside className="w-16 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-[calc(100vh-64px)] sticky top-16 z-30 transition-all duration-300">
       <TooltipProvider delayDuration={0}>
         <div className="flex-1 flex flex-col items-center py-4 gap-2 overflow-y-auto no-scrollbar">
-          {menuItems.map((item) => {
+          {filteredMenuItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Tooltip key={item.name}>

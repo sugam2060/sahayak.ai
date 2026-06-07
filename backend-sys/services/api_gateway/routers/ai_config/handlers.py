@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from shared.database.schema.organization_config_ai import OrganizationConfigAI
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 from shared.utils import get_db
 
 router = APIRouter(prefix="/api/ai-config")
@@ -19,7 +19,7 @@ class AIConfigUpdate(BaseModel):
 
 @router.get("")
 async def get_ai_config(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("ai_config")),
     db: AsyncSession = Depends(get_db)
 ):
     try:
@@ -67,7 +67,7 @@ async def get_ai_config(
 async def update_ai_config(
     req: AIConfigUpdate,
     request: Request,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("ai_config")),
     db: AsyncSession = Depends(get_db)
 ):
     try:

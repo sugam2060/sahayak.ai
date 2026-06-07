@@ -1,12 +1,38 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends, Cookie
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from uuid import UUID
 from shared.proto import service_pb2
+from shared.utils import get_db
+from shared.database.schema import Team, TeamMember
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+async def get_user_permissions(db: AsyncSession, user_id_str: str, role: str) -> list[str]:
+    role = role.upper()
+    all_permissions = ["products", "orders", "tickets", "connectors", "ai_config", "chats", "teams"]
+    if role == "OWNER":
+        return all_permissions
+    
+    try:
+        user_id = UUID(user_id_str)
+        stmt = (
+            select(Team.permissions)
+            .join(TeamMember, TeamMember.team_id == Team.id)
+            .where(TeamMember.user_id == user_id)
+        )
+        res = await db.execute(stmt)
+        permissions = res.scalar_one_or_none()
+        return permissions or []
+    except Exception as e:
+        print(f"Error querying permissions for user {user_id_str}: {e}")
+        return []
+
 async def get_current_user(
     request: Request,
-    access_token: Optional[str] = Cookie(None)
+    access_token: Optional[str] = Cookie(None),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     FastAPI Dependency to verify the access token from cookies.
@@ -42,11 +68,15 @@ async def get_current_user(
                 detail=grpc_response.message or "Invalid or expired session."
             )
             
+        role = grpc_response.role
+        permissions = await get_user_permissions(db, grpc_response.user_id, role)
+        
         return {
             "user_id": grpc_response.user_id,
             "organization_id": grpc_response.organization_id,
             "organization_name": grpc_response.organization_name,
-            "role": grpc_response.role
+            "role": role,
+            "permissions": permissions
         }
     except Exception as e:
         if isinstance(e, HTTPException):

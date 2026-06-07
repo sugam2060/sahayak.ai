@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import Optional
 from pydantic import BaseModel, Field
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 from services.api_gateway.routers.ticket.read import ticket_to_dict
 
 router = APIRouter(prefix="/api/tickets")
@@ -17,7 +17,7 @@ async def update_ticket(
     ticket_id: UUID,
     req: TicketUpdate,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("tickets"))
 ):
     try:
         org_id = current_user["organization_id"]

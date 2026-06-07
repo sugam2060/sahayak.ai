@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from uuid import UUID
 from typing import Optional
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 from shared.utils import decrypt_token, encrypt_token
 from shared.config import JWT_SECRET
 
@@ -33,7 +33,7 @@ async def list_tickets(
     status: Optional[str] = None,
     priority: Optional[str] = None,
     search: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("tickets"))
 ):
     try:
         org_id = current_user["organization_id"]
@@ -114,7 +114,7 @@ async def track_ticket(
 async def get_ticket_detail(
     ticket_id: UUID,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("tickets"))
 ):
     try:
         org_id = current_user["organization_id"]

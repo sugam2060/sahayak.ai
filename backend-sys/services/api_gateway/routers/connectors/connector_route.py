@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 
 from shared.database.engine import SessionLocal
 from shared.config import JWT_SECRET, JWT_ALGORITHM, FRONTEND_URL
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 from shared.database.schema.platform_connectors import PlatformConnector
 from services.api_gateway.routers.connectors.connector_class import (
     ConnectorError,
@@ -72,7 +72,7 @@ def get_connector(platform: str):
 
 
 @router.get("/oauth/url/{platform}")
-async def get_oauth_url(platform: str, current_user: dict = Depends(get_current_user)):
+async def get_oauth_url(platform: str, current_user: dict = Depends(check_permission("connectors"))):
     """
     Generates the authorization redirect URL for TikTok or Instagram OAuth flows.
     Authenticates the request and signs user session context into a secure JWT state token.
@@ -165,7 +165,7 @@ async def oauth_callback(
 @router.post("/telegram/connect")
 async def telegram_connect(
     req: TelegramConnectRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("connectors")),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -201,7 +201,7 @@ async def telegram_connect(
 
 @router.get("")
 async def list_connectors(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("connectors")),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -255,7 +255,7 @@ async def list_connectors(
 @router.post("/disconnect/{platform}")
 async def disconnect_connector(
     platform: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("connectors")),
     db: AsyncSession = Depends(get_db)
 ):
     """

@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 
 router = APIRouter(prefix="/api/orders")
 
@@ -15,7 +15,7 @@ async def update_order_status(
     order_id: UUID,
     req: OrderStatusUpdate,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("orders"))
 ):
     try:
         grpc_req = service_pb2.UpdateOrderStatusRequest(

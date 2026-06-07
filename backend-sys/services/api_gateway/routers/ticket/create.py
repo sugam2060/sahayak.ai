@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import Optional
 from pydantic import BaseModel, Field
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 from shared.utils import encrypt_token
 from shared.config import JWT_SECRET
 
@@ -21,7 +21,7 @@ class TicketCreate(BaseModel):
 async def create_ticket(
     req: TicketCreate,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("tickets"))
 ):
     try:
         grpc_req = service_pb2.CreateTicketRequest(

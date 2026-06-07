@@ -96,7 +96,7 @@ def mock_auth_stub():
         user_id="22222222-3333-4444-5555-666666666666",
         organization_id="11111111-2222-3333-4444-555555555555",
         organization_name="Test Org",
-        role="admin"
+        role="OWNER"
     )
     stub.RefreshToken.return_value = service_pb2.RefreshTokenResponse(
         success=True,

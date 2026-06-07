@@ -56,6 +56,43 @@ export async function proxy(request: NextRequest) {
         return response;
       }
 
+      try {
+        const data = await verifyResponse.clone().json();
+        const user = data?.user;
+        const role = user?.role?.toUpperCase();
+        const permissions = user?.permissions || [];
+
+        const routePermissions: { [key: string]: string } = {
+          '/inbox': 'chats',
+          '/orders': 'orders',
+          '/ticket': 'tickets',
+          '/products': 'products',
+          '/connectors': 'connectors',
+          '/ai-config': 'ai_config',
+          '/team': 'teams',
+        };
+
+        if (role !== 'OWNER') {
+          for (const [route, permission] of Object.entries(routePermissions)) {
+            if (normalizedPathname === route || normalizedPathname.startsWith(route + '/')) {
+              if (!permissions.includes(permission)) {
+                const response = NextResponse.redirect(new URL('/', request.url));
+                // Propagate any refreshed cookies if present
+                const newCookies = verifyResponse.headers.getSetCookie();
+                if (newCookies && newCookies.length > 0) {
+                  newCookies.forEach(cookie => {
+                    response.headers.append('Set-Cookie', cookie);
+                  });
+                }
+                return response;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing user permissions in middleware proxy:', err);
+      }
+
       // If tokens were refreshed by the backend (automatic refresh), 
       // we must propagate the new Set-Cookie headers to the browser.
       const newCookies = verifyResponse.headers.getSetCookie();

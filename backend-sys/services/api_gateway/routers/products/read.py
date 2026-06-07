@@ -3,7 +3,7 @@ from typing import Optional
 from uuid import UUID
 
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 
 router = APIRouter(prefix="/api/products")
 
@@ -32,7 +32,7 @@ async def get_products(
     sku: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     stock_status: Optional[str] = Query(None, description="in_stock or out_of_stock"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("products"))
 ):
     try:
         grpc_req = service_pb2.GetProductsRequest(
@@ -75,7 +75,7 @@ async def get_products(
 async def get_product_detail(
     product_id: UUID,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("products"))
 ):
     try:
         grpc_req = service_pb2.GetProductDetailRequest(

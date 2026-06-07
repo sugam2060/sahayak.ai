@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { 
   User, 
@@ -11,12 +12,41 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
-import { logoutUser } from '@/services/api/auth';
+import { logoutUser, getProfile } from '@/services/api/auth';
 
 export const Header = () => {
   const user = useAuthStore((state) => state.user);
   const clearAuth = useAuthStore((state) => state.clearAuth);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const router = useRouter();
+
+  useEffect(() => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    const syncProfile = async () => {
+      try {
+        const profile = await getProfile();
+        if (profile.success && profile.user) {
+          const latestUser = useAuthStore.getState().user;
+          const currentPermsStr = JSON.stringify(latestUser?.permissions || []);
+          const newPermsStr = JSON.stringify(profile.user.permissions || []);
+          const roleChanged = latestUser?.role !== profile.user.role;
+
+          if (roleChanged || currentPermsStr !== newPermsStr) {
+            updateUser(profile.user);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to sync user profile:", err);
+        clearAuth();
+        router.push('/login');
+      }
+    };
+
+    syncProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = async () => {
     try {

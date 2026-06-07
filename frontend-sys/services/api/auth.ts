@@ -95,3 +95,21 @@ export const logoutUser = async (): Promise<{ success: boolean; message: string 
 
   return result;
 };
+
+export const getProfile = async (): Promise<{ success: boolean; user: LoginResponse }> => {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.detail || 'Failed to fetch user profile');
+  }
+
+  return result;
+};

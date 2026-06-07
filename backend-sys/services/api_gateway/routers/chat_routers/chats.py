@@ -7,7 +7,7 @@ from shared.database.engine import SessionLocal
 from shared.database.schema.platform_connectors import PlatformConnector
 from sqlalchemy import select
 from pydantic import BaseModel
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 from shared.database.schema.users import User, UserRole
 from uuid import UUID
 import logging
@@ -19,27 +19,42 @@ async def check_chat_access(platform: str, sender_id: Union[int, str], user_id: 
     sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
     query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
     
-    conv = await mongo_db.conversations.find_one({
-        "platform": platform.lower(),
-        "user.sender_id": query_id
-    })
-    if not conv:
-        # If no conversation exists yet, verify they are at least a valid user
-        user_stmt = select(User).where(User.id == UUID(user_id))
-        user_result = await db_session.execute(user_stmt)
-        return user_result.scalar_one_or_none() is not None
-
-    assigned_user = conv.get("assigned_user")
+    # 1. Fetch user to check role and permissions
     user_stmt = select(User).where(User.id == UUID(user_id))
     user_result = await db_session.execute(user_stmt)
     db_user = user_result.scalar_one_or_none()
     if not db_user:
         return False
 
+    role = db_user.role.value if hasattr(db_user.role, 'value') else str(db_user.role)
+    role = role.upper()
+
+    # If the user is not OWNER, check if they have "chats" permission
+    if role != "OWNER":
+        from services.api_gateway.routers.auth_routers.me import get_user_permissions
+        permissions = await get_user_permissions(db_session, user_id, role)
+        if "chats" not in permissions:
+            return False
+
+    conv = await mongo_db.conversations.find_one({
+        "platform": platform.lower(),
+        "user.sender_id": query_id
+    })
+    if not conv:
+        # If no conversation exists yet, but they are authorized for chats, they can access
+        return True
+
+    # 2. Check organization boundaries
+    if str(conv.get("organization_id", "")) != str(db_user.organization_id):
+        return False
+
+    # 3. Check assignment boundaries
+    assigned_user = conv.get("assigned_user")
     if assigned_user:
-        return str(assigned_user) == str(user_id)
-    else:
-        return db_user.role == UserRole.OWNER or db_user.role.value == "OWNER"
+        return str(assigned_user) == str(user_id) or role == "OWNER"
+
+    # If unassigned, any authorized user (OWNER or someone with "chats" permission) is allowed
+    return True
 
 
 router = APIRouter(prefix="/api/chats", tags=["Chat Management"])
@@ -65,15 +80,19 @@ class ToggleAIAssignedRequest(BaseModel):
     ai_assigned: bool
 
 @router.get("")
-async def get_chat_list(organization_id: Optional[str] = None):
+async def get_chat_list(
+    organization_id: Optional[str] = None,
+    current_user: dict = Depends(check_permission("chats"))
+):
     """
     Get all conversations/chats, optionally filtered by organization_id.
     """
     try:
         db = MongoDBManager.get_db()
         query = {}
-        if organization_id:
-            query["organization_id"] = organization_id
+        org_filter = organization_id or current_user["organization_id"]
+        if org_filter:
+            query["organization_id"] = org_filter
             
         # Retrieve all conversations, sorted by updated_at descending
         cursor = db.conversations.find(query).sort("updated_at", -1)
@@ -96,7 +115,7 @@ async def get_chat_list(organization_id: Optional[str] = None):
 async def get_chat_history(
     platform: str,
     sender_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("chats")),
     db_session: AsyncSession = Depends(get_db)
 ):
     """
@@ -143,7 +162,7 @@ async def get_chat_history(
 async def send_chat_reply_endpoint(
     req: SendReplyRequest,
     db_session: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("chats"))
 ):
     """
     Send a reply to a conversation. Finds the bot token, organization ID, and chat ID
@@ -250,7 +269,7 @@ async def send_chat_reply_image(
     image_file: Optional[UploadFile] = File(None),
     image_files: Optional[List[UploadFile]] = File(None),
     db_session: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("chats"))
 ):
     """
     Send a reply with one or more images. Uploads each image to Cloudinary first,
@@ -383,7 +402,7 @@ async def send_chat_reply_image(
 @router.post("/assign")
 async def assign_chat_user(
     req: AssignChatRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(check_permission("chats")),
     db_session: AsyncSession = Depends(get_db)
 ):
     """
@@ -444,7 +463,10 @@ async def assign_chat_user(
         )
 
 @router.post("/toggle-ai")
-async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
+async def toggle_ai_assigned(
+    req: ToggleAIAssignedRequest,
+    current_user: dict = Depends(check_permission("chats"))
+):
     """
     Toggle the ai_assigned flag for a specific conversation by platform and sender_id.
     """
@@ -462,6 +484,12 @@ async def toggle_ai_assigned(req: ToggleAIAssignedRequest):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found in MongoDB."
+            )
+            
+        if str(conv.get("organization_id", "")) != str(current_user["organization_id"]):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this conversation."
             )
             
         # Update flag
@@ -511,7 +539,7 @@ class MarkReadRequest(BaseModel):
 async def mark_chat_as_read(
     req: MarkReadRequest,
     db_session: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("chats"))
 ):
     """
     Mark all inbound messages in a conversation as seen in MongoDB.
@@ -652,6 +680,16 @@ from shared.config import KAFKA_BOOTSTRAP_SERVERS
 
 logger = logging.getLogger("api_gateway.chats_ws")
 
+async def safe_close(websocket: WebSocket, code: int):
+    try:
+        from starlette.websockets import WebSocketState
+        if websocket.client_state == WebSocketState.CONNECTING:
+            await websocket.accept()
+        if websocket.client_state == WebSocketState.CONNECTED:
+            await websocket.close(code=code)
+    except Exception:
+        pass
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, list[WebSocket]] = {}
@@ -669,7 +707,12 @@ class ConnectionManager:
         sender_id: Optional[Union[int, str]] = None,
         db_session: AsyncSession = None
     ) -> bool:
-        await websocket.accept()
+        try:
+            from starlette.websockets import WebSocketState
+            if websocket.client_state == WebSocketState.CONNECTING:
+                await websocket.accept()
+        except Exception:
+            return False
 
         # Enforce connection restrictions if user_id and chat details are provided
         if user_id and platform and sender_id and db_session:
@@ -677,11 +720,14 @@ class ConnectionManager:
             # Check DB permission first
             has_access = await check_chat_access(platform, sender_id_str, user_id, db_session)
             if not has_access:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Access denied. Chat is assigned to another user or you lack OWNER role."
-                })
-                await websocket.close(code=4003)
+                try:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Access denied. Chat is assigned to another user or you lack OWNER role."
+                    })
+                    await websocket.close(code=4003)
+                except Exception:
+                    pass
                 return False
 
             # Check for concurrent user-2 connection to same chat
@@ -689,11 +735,14 @@ class ConnectionManager:
             if chat_key in self.active_chat_sessions:
                 existing_user = self.active_chat_sessions[chat_key]
                 if str(existing_user) != str(user_id):
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Another user is currently connected to this chat."
-                    })
-                    await websocket.close(code=4009)
+                    try:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Another user is currently connected to this chat."
+                        })
+                        await websocket.close(code=4009)
+                    except Exception:
+                        pass
                     return False
 
             self.active_chat_sessions[chat_key] = user_id
@@ -739,15 +788,52 @@ async def websocket_endpoint(
     sender_id: Optional[str] = None
 ):
     async with SessionLocal() as db_session:
-        success = await manager.connect(
-            org_id=org_id,
-            websocket=websocket,
-            user_id=user_id,
-            platform=platform,
-            sender_id=sender_id,
-            db_session=db_session
-        )
-        if not success:
+        # Check permissions first
+        if not user_id:
+            await safe_close(websocket, 4003)
+            return
+            
+        try:
+            user_stmt = select(User).where(User.id == UUID(user_id))
+            user_result = await db_session.execute(user_stmt)
+            db_user = user_result.scalar_one_or_none()
+            if not db_user:
+                await safe_close(websocket, 4003)
+                return
+            
+            role = db_user.role.value if hasattr(db_user.role, 'value') else str(db_user.role)
+            role = role.upper()
+            if role != "OWNER":
+                from services.api_gateway.routers.auth_routers.me import get_user_permissions
+                permissions = await get_user_permissions(db_session, user_id, role)
+                if "chats" not in permissions:
+                    await safe_close(websocket, 4003)
+                    return
+        except Exception as e:
+            logger.error(f"[WebSocket] Authorization error: {e}")
+            await safe_close(websocket, 4003)
+            return
+
+        try:
+            success = await manager.connect(
+                org_id=org_id,
+                websocket=websocket,
+                user_id=user_id,
+                platform=platform,
+                sender_id=sender_id,
+                db_session=db_session
+            )
+            if not success:
+                return
+        except WebSocketDisconnect:
+            logger.info(f"[WebSocket] Client disconnected during connection handshake.")
+            return
+        except Exception as e:
+            logger.error(f"[WebSocket] Error during connection handshake: {e}")
+            try:
+                await websocket.close(code=1011)
+            except Exception:
+                pass
             return
 
     try:

@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from shared.proto import service_pb2
-from services.api_gateway.routers.auth_routers.me import get_current_user
+from services.api_gateway.routers.teams.permissions import check_permission
 
 router = APIRouter(prefix="/api/orders")
 
@@ -27,7 +27,7 @@ class OrderCreate(BaseModel):
 async def create_order(
     req: OrderCreate,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("orders"))
 ):
     try:
         phone_stripped = req.customer_phone.strip()

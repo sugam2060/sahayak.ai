@@ -21,6 +21,8 @@ export interface LoginResponse {
   organization_name?: string;
   organization_slug?: string;
   email?: string;
+  role?: string;
+  permissions?: string[];
 }
 
 export interface AuthBackgroundProps {

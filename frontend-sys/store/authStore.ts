@@ -7,6 +7,7 @@ interface AuthState {
   isAuthenticated: boolean;
   setAuth: (data: LoginResponse) => void;
   clearAuth: () => void;
+  updateUser: (data: Partial<LoginResponse>) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -23,10 +24,15 @@ export const useAuthStore = create<AuthState>()(
           organization_slug: data.organization_slug,
           email: data.email,
           is_verified: data.is_verified,
+          role: data.role,
+          permissions: data.permissions || [],
         }, 
         isAuthenticated: true 
       }),
       clearAuth: () => set({ user: null, isAuthenticated: false }),
+      updateUser: (data) => set((state) => ({
+        user: state.user ? { ...state.user, ...data } : null
+      })),
     }),
     {
       name: 'sahayak-auth',
