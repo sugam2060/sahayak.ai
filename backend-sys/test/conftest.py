@@ -58,6 +58,13 @@ def mock_redis_client():
     client.delete.return_value = 1
     client.close = AsyncMock()
     
+    mock_pubsub = AsyncMock()
+    async def mock_listen():
+        if False:
+            yield None
+    mock_pubsub.listen = mock_listen
+    client.pubsub = MagicMock(return_value=mock_pubsub)
+    
     with patch("shared.redis_pool.RedisPool.get_client", return_value=client), \
          patch("redis.asyncio.from_url", return_value=client):
         yield client

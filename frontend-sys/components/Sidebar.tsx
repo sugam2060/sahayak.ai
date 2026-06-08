@@ -11,7 +11,6 @@ import {
   RiPlugLine, 
   RiRobot2Line, 
   RiTeamLine,
-  RiUser3Line,
   RiBox3Line,
   RiSettings4Line,
   RiBarChartGroupedLine
@@ -40,7 +39,6 @@ export const Sidebar = () => {
     { name: 'Connectors', icon: RiPlugLine, href: '/connectors', permission: 'connectors' },
     { name: 'AI Configuration', icon: RiRobot2Line, href: '/ai-config', permission: 'ai_config' },
     { name: 'Team Management', icon: RiTeamLine, href: '/team', permission: 'teams' },
-    { name: 'User Profile', icon: RiUser3Line, href: '/profile' },
     { name: 'Analytics', icon: RiBarChartGroupedLine, href: '/analytics' },
   ];
 

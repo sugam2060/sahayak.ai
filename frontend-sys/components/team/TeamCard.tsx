@@ -2,6 +2,7 @@
 
 import { Team, TeamMember } from '@/types/team';
 import { useAssignTeamMember, useRemoveTeamMember } from '@/services/api/teams';
+import { usePresenceStore } from '@/store/presenceStore';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -29,6 +30,7 @@ export const TeamCard = ({
 }: TeamCardProps) => {
   const assignMemberMutation = useAssignTeamMember();
   const removeMemberMutation = useRemoveTeamMember();
+  const { statuses } = usePresenceStore();
 
   const handleAssign = async (userId: string) => {
     try {
@@ -138,50 +140,56 @@ export const TeamCard = ({
             </p>
           ) : (
             <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-              {team.members.map((member) => (
-                <div 
-                  key={member.user_id} 
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800/30 group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-300 relative">
-                      {member.full_name.charAt(0).toUpperCase()}
-                      <span 
-                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-900 ${
-                          member.is_active ? 'bg-teal-500' : 'bg-amber-500'
-                        }`}
-                        title={member.is_active ? 'Active' : 'Pending Verification'}
-                      />
+              {team.members.map((member) => {
+                const memberStatus = statuses[member.user_id] || 'offline';
+                return (
+                  <div 
+                    key={member.user_id} 
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800/30 group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-300 relative">
+                        {member.full_name.charAt(0).toUpperCase()}
+                        <span 
+                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-zinc-900 ${
+                            memberStatus === 'online' ? 'bg-emerald-500' :
+                            memberStatus === 'away' ? 'bg-amber-500' :
+                            memberStatus === 'busy' ? 'bg-red-600' :
+                            'bg-zinc-400'
+                          }`}
+                          title={`Status: ${memberStatus}`}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate font-sans">
+                          {member.full_name}
+                        </p>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate font-sans">
+                          {member.email}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate font-sans">
-                        {member.full_name}
-                      </p>
-                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate font-sans">
-                        {member.email}
-                      </p>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[9px] font-bold tracking-wider uppercase bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded font-mono">
+                        {member.role}
+                      </span>
+
+                      {canManage && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleRemove(member.user_id)}
+                          className="text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded"
+                          title="Remove from team"
+                        >
+                          <UserMinus size={13} />
+                        </Button>
+                      )}
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[9px] font-bold tracking-wider uppercase bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded font-mono">
-                      {member.role}
-                    </span>
-
-                    {canManage && (
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => handleRemove(member.user_id)}
-                        className="text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded"
-                        title="Remove from team"
-                      >
-                        <UserMinus size={13} />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

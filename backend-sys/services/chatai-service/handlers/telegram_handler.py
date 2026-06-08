@@ -91,10 +91,10 @@ class TelegramPlatformHandler(BasePlatformHandler):
             "profile_pic": None
         }
         
-        # For new conversations, auto-set ai_assigned=True if org has AI enabled
-        initial_ai_assigned = False
-        if is_new_conversation:
-            initial_ai_assigned = await self._check_ai_enabled(org_id)
+        # Determine ai_assigned dynamically based on org config and human assignment
+        ai_enabled = await self._check_ai_enabled(org_id)
+        assigned_user = conv.get("assigned_user") if conv else None
+        ai_assigned = True if (ai_enabled and not assigned_user) else False
         
         now = datetime.now(timezone.utc)
         await self.db.conversations.update_one({
@@ -105,11 +105,11 @@ class TelegramPlatformHandler(BasePlatformHandler):
                 "organization_id": org_id,
                 "bot_name": bot_name,
                 "chat_id": chat_id,
-                "ai_assigned": initial_ai_assigned,
                 "created_at": now
             },
             "$set": {
                 "user": user_data,
+                "ai_assigned": ai_assigned,
                 "updated_at": now
             },
             "$push": {

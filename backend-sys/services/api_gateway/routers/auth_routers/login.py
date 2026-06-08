@@ -9,7 +9,7 @@ class LoginSchema(BaseModel):
     password: str
 
 from fastapi.responses import JSONResponse
-from shared.config import COOKIE_DOMAIN
+from shared.config import COOKIE_DOMAIN,APP_ENV
 
 @router.post("/login")
 async def login(request: Request, data: LoginSchema):
@@ -74,9 +74,9 @@ async def login(request: Request, data: LoginSchema):
             key="access_token",
             value=grpc_response.access_token,
             httponly=True,
-            secure=True,  # Set to True in production (HTTPS)
-            samesite="lax",
-            domain=COOKIE_DOMAIN,
+            secure=True if APP_ENV == "production" else False,
+            samesite="lax" if APP_ENV == "production" else None,
+            domain=COOKIE_DOMAIN if APP_ENV == "production" else None,
             max_age=3600,   # 1 hour
             path="/"
         )
@@ -84,9 +84,9 @@ async def login(request: Request, data: LoginSchema):
             key="refresh_token",
             value=grpc_response.refresh_token,
             httponly=True,
-            secure=True,  # Set to True in production (HTTPS)
-            samesite="lax",
-            domain=COOKIE_DOMAIN,
+            secure=True if APP_ENV == "production" else False,
+            samesite="lax" if APP_ENV == "production" else None,
+            domain=COOKIE_DOMAIN if APP_ENV == "production" else None,
             max_age=30 * 24 * 3600,  # 30 days
             path="/"
         )

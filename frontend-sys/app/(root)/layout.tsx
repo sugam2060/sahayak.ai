@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Sidebar } from "@/components/Sidebar";
+import { PresenceObserver } from "@/components/presence/PresenceObserver";
 
 export default function RootLayout({
   children,
@@ -9,6 +10,7 @@ export default function RootLayout({
 }>) {
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
+      <PresenceObserver />
       <Header />
       <div className="flex flex-1">
         <Suspense fallback={<aside className="w-16 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 h-[calc(100vh-64px)]" />}>

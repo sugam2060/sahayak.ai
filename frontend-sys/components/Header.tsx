@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { usePresenceStore } from '@/store/presenceStore';
 import { 
   User, 
   LogOut, 
@@ -18,6 +19,7 @@ export const Header = () => {
   const user = useAuthStore((state) => state.user);
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const updateUser = useAuthStore((state) => state.updateUser);
+  const { myStatus, changeMyStatus } = usePresenceStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -89,8 +91,13 @@ export const Header = () => {
             </div>
             
             <div className="relative group">
-              <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-primary group-hover:border-primary transition-all cursor-pointer overflow-hidden">
-                <User size={20} />
+              <div className="relative cursor-pointer">
+                <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-primary group-hover:border-primary transition-all overflow-hidden">
+                  <User size={20} />
+                </div>
+                <span className={`absolute -bottom-1.5 -right-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-zinc-900 z-10 ${
+                  myStatus === 'online' ? 'bg-emerald-500' : myStatus === 'away' ? 'bg-amber-500' : 'bg-red-600'
+                }`} />
               </div>
 
               {/* Dropdown Menu */}
@@ -99,6 +106,30 @@ export const Header = () => {
                   <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 mb-1 lg:hidden">
                     <p className="text-sm font-bold truncate">{user?.full_name}</p>
                     <p className="text-xs text-zinc-500 truncate">{user?.organization_name}</p>
+                  </div>
+                  {/* Status Options */}
+                  <div className="px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 mb-1">
+                    <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block mb-1.5">My Status</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { label: 'Online', val: 'online' as const, color: 'bg-emerald-500' },
+                        { label: 'Away', val: 'away' as const, color: 'bg-amber-500' },
+                        { label: 'Busy', val: 'busy' as const, color: 'bg-red-600' }
+                      ].map((item) => (
+                        <button
+                          key={item.val}
+                          onClick={() => changeMyStatus(item.val)}
+                          className={`flex flex-col items-center justify-center py-1 rounded-lg border text-[10px] font-semibold transition-all ${
+                            myStatus === item.val
+                              ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400'
+                              : 'border-zinc-100 dark:border-zinc-850 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${item.color} mb-1`} />
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
                     <Settings size={16} />

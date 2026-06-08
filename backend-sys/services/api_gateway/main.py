@@ -48,10 +48,20 @@ async def lifespan(app: FastAPI):
         await start_ws_kafka_consumer()
     except Exception as e:
         print(f"Failed to start WebSocket Kafka consumer on Gateway startup: {e}")
+        
+    # Start Presence systems (expired listener and updates subscriber)
+    from services.api_gateway.routers.presence import start_presence_listener, stop_presence_listener, start_presence_subscriber, stop_presence_subscriber
+    try:
+        await start_presence_listener()
+        await start_presence_subscriber()
+    except Exception as e:
+        print(f"Failed to start Presence systems on Gateway startup: {e}")
     
     yield
     
-    # Shutdown: Close gRPC Channels and MongoDB client
+    # Shutdown: Close Presence systems, gRPC Channels, and MongoDB client
+    await stop_presence_subscriber()
+    await stop_presence_listener()
     await stop_ws_kafka_consumer()
     await auth_channel.close()
     await workers_channel.close()
@@ -103,6 +113,9 @@ app.include_router(orders.router)
 app.include_router(ai_config_router)
 app.include_router(ticket_router)
 app.include_router(teams_router)
+
+from services.api_gateway.routers.presence import router as presence_router
+app.include_router(presence_router)
 
 @app.get("/health")
 async def health_check():
