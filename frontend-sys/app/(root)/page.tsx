@@ -3,8 +3,8 @@
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 import { Loader } from '@/components/ui/Loader';
+import { useAuthStore } from '@/store/authStore';
 
-// Dynamically import the dashboard with SSR disabled
 const SalesDashboard = dynamic(
   () => import('@/components/dashboard').then(mod => mod.SalesDashboard),
   { 
@@ -17,11 +17,29 @@ const SalesDashboard = dynamic(
   }
 );
 
+const DashboardWelcome = dynamic(
+  () => import('@/components/dashboard').then(mod => mod.DashboardWelcome),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 flex items-center justify-center min-h-[400px]">
+        <Loader size="lg" text="Loading workspace" />
+      </div>
+    )
+  }
+);
+
 export default function Home() {
+  const { user } = useAuthStore();
+  const role = user?.role?.toUpperCase();
+  const permissions = user?.permissions || [];
+
+  const hasAnalytics = role === 'OWNER' || permissions.includes('analytics');
+
   return (
     <div className="flex-1">
       <Suspense fallback={null}>
-        <SalesDashboard />
+        {hasAnalytics ? <SalesDashboard /> : <DashboardWelcome />}
       </Suspense>
     </div>
   );

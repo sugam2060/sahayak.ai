@@ -39,7 +39,7 @@ export const Sidebar = () => {
     { name: 'Connectors', icon: RiPlugLine, href: '/connectors', permission: 'connectors' },
     { name: 'AI Configuration', icon: RiRobot2Line, href: '/ai-config', permission: 'ai_config' },
     { name: 'Team Management', icon: RiTeamLine, href: '/team', permission: 'teams' },
-    { name: 'Analytics', icon: RiBarChartGroupedLine, href: '/analytics' },
+    { name: 'Analytics', icon: RiBarChartGroupedLine, href: '/analytics', permission: 'analytics' },
   ];
 
   const filteredMenuItems = menuItems.filter(item => {

@@ -139,3 +139,19 @@ def mock_kafka_producer():
          patch("shared.kafka_producer.KafkaProducerPool.close", new=producer_mock.close):
         yield producer_mock
 
+
+@pytest.fixture(autouse=True)
+def mock_kafka_consumer():
+    """Mock fixture for AIOKafkaConsumer globally to avoid actual Kafka connections."""
+    consumer_mock = MagicMock()
+    consumer_mock.start = AsyncMock()
+    consumer_mock.stop = AsyncMock()
+    
+    async def mock_getmany(*args, **kwargs):
+        await asyncio.sleep(0.1)
+        return {}
+    consumer_mock.getmany = mock_getmany
+    
+    with patch("services.api_gateway.routers.chat_routers.chats.AIOKafkaConsumer", return_value=consumer_mock):
+        yield consumer_mock
+

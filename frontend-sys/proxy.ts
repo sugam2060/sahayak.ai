@@ -71,6 +71,7 @@ export async function proxy(request: NextRequest) {
           '/ai-config': 'ai_config',
           '/team': 'teams',
           '/org-settings': 'org_settings',
+          '/analytics': 'analytics',
         };
 
         if (role !== 'OWNER') {

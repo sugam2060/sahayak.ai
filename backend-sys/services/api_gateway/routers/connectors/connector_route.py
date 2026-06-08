@@ -4,7 +4,7 @@ import jwt
 import logging
 
 logger = logging.getLogger("api_gateway.connector_route")
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 from urllib.parse import quote_plus
@@ -85,7 +85,7 @@ async def get_oauth_url(platform: str, current_user: dict = Depends(check_permis
         "business_id": str(current_user["organization_id"]),
         "user_id": str(current_user["user_id"]),
         "platform": platform.lower(),
-        "exp": datetime.utcnow() + timedelta(minutes=10)
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=10)
     }
     state_token = jwt.encode(state_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
