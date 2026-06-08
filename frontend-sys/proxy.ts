@@ -70,6 +70,7 @@ export async function proxy(request: NextRequest) {
           '/connectors': 'connectors',
           '/ai-config': 'ai_config',
           '/team': 'teams',
+          '/org-settings': 'org_settings',
         };
 
         if (role !== 'OWNER') {

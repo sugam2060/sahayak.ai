@@ -135,10 +135,15 @@ export const Header = () => {
                     <Settings size={16} />
                     Account Settings
                   </button>
-                  <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
-                    <Settings2 size={16} />
-                    Org Settings
-                  </button>
+                  {(user?.role?.toUpperCase() === 'OWNER' || user?.permissions?.includes('org_settings')) && (
+                    <button 
+                      onClick={() => router.push('/org-settings')}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                    >
+                      <Settings2 size={16} />
+                      Org Settings
+                    </button>
+                  )}
                   <button 
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-600 hover:bg-red-50 transition-colors"
