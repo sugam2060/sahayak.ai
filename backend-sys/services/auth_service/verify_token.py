@@ -46,11 +46,11 @@ async def handle_verify_access_token(request: service_pb2.VerifyAccessTokenReque
                 
                 user, org = row
                 
-                # Verify user is still active/verified
-                if not user.is_active or not user.is_verified:
+                # Verify user and organization are active
+                if not user.is_active or not user.is_verified or org.is_active is False:
                     return service_pb2.VerifyAccessTokenResponse(
                         valid=False,
-                        message="Account is inactive or unverified."
+                        message="Account or organization is inactive."
                     )
                 
                 # Re-cache in Redis

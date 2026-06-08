@@ -27,6 +27,7 @@ from services.api_gateway.routers import products, orders
 from services.api_gateway.routers.ai_config import router as ai_config_router
 from services.api_gateway.routers.ticket import router as ticket_router
 from services.api_gateway.routers.teams import router as teams_router
+from services.api_gateway.routers.organizations import router as organizations_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -113,6 +114,7 @@ app.include_router(orders.router)
 app.include_router(ai_config_router)
 app.include_router(ticket_router)
 app.include_router(teams_router)
+app.include_router(organizations_router)
 
 from services.api_gateway.routers.presence import router as presence_router
 app.include_router(presence_router)

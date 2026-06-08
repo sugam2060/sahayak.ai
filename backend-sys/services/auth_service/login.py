@@ -41,6 +41,9 @@ async def handle_login(request: service_pb2.LoginRequest):
                     return service_pb2.LoginResponse(success=False, message="Invalid email or password.")
                 
                 user, org = row
+                if org.is_active is False:
+                    return service_pb2.LoginResponse(success=False, message="Organization is inactive.")
+                
                 user_data = {
                     "id": str(user.id),
                     "full_name": user.full_name,

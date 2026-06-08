@@ -11,7 +11,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 async def get_user_permissions(db: AsyncSession, user_id_str: str, role: str) -> list[str]:
     role = role.upper()
-    all_permissions = ["products", "orders", "tickets", "connectors", "ai_config", "chats", "teams"]
+    all_permissions = ["products", "orders", "tickets", "connectors", "ai_config", "chats", "teams", "org_settings"]
     if role == "OWNER":
         return all_permissions
     
