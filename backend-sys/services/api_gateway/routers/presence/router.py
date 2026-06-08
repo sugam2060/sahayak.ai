@@ -34,9 +34,10 @@ async def websocket_presence_endpoint(
     websocket: WebSocket,
     org_id: str,
     user_id: Optional[str] = None,
-    device_type: str = "web",
-    presence_service: PresenceService = Depends(get_presence_service)
+    device_type: str = "web"
 ):
+    logger.info(f"[Presence WebSocket] Connection attempt: org_id={org_id}, user_id={user_id}, device_type={device_type}")
+    presence_service = PresenceService()
     if not user_id:
         await safe_close(websocket, 4003)
         return
