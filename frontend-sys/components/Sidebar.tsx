@@ -1,18 +1,17 @@
 'use client';
 
-import { 
-  LayoutDashboard, 
-  MessageSquare, 
-  Package,  
+import {
+  LayoutDashboard,
+  MessageSquare,
+  Package,
   HelpCircle,
   Ticket,
 } from 'lucide-react';
-import { 
-  RiPlugLine, 
-  RiRobot2Line, 
+import {
+  RiPlugLine,
+  RiRobot2Line,
   RiTeamLine,
   RiBox3Line,
-  RiSettings4Line,
   RiBarChartGroupedLine
 } from 'react-icons/ri';
 import Link from 'next/link';
@@ -39,7 +38,7 @@ export const Sidebar = () => {
     { name: 'Connectors', icon: RiPlugLine, href: '/connectors', permission: 'connectors' },
     { name: 'AI Configuration', icon: RiRobot2Line, href: '/ai-config', permission: 'ai_config' },
     { name: 'Team Management', icon: RiTeamLine, href: '/team', permission: 'teams' },
-    { name: 'Analytics', icon: RiBarChartGroupedLine, href: '/analytics', permission: 'analytics' },
+    { name: 'Analytics', icon: RiBarChartGroupedLine, href: '/analytics' },
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
@@ -55,8 +54,7 @@ export const Sidebar = () => {
   });
 
   const bottomItems = [
-    { name: 'Help', icon: HelpCircle, href: '/help' },
-    { name: 'Settings', icon: RiSettings4Line, href: '/settings' },
+    { name: 'Help', icon: HelpCircle, href: '#' }
   ];
 
   return (
@@ -70,11 +68,10 @@ export const Sidebar = () => {
                 <TooltipTrigger asChild>
                   <Link
                     href={item.href}
-                    className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all group ${
-                      isActive 
-                        ? 'bg-primary text-white shadow-md shadow-primary/20' 
-                        : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
-                    }`}
+                    className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all group ${isActive
+                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
                   >
                     <item.icon size={18} className="transition-transform group-hover:scale-110" />
                     {isActive && (

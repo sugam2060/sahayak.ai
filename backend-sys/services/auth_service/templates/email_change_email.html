@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .header {
+            background-color: #4f46e5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            padding: 20px;
+            line-height: 1.6;
+            color: #374151;
+        }
+        .email-box {
+            background-color: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #1f2937;
+            margin: 12px 0;
+            word-break: break-all;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4f46e5;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .warning {
+            background-color: #fff7ed;
+            border-left: 4px solid #f97316;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #9a3412;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #9ca3af;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Confirm Email Change</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{{full_name}}</strong>,</p>
+            <p>We received a request to change the email address on your Sahayak account to:</p>
+            <div class="email-box">{{new_email}}</div>
+            <p>To confirm this change, click the button below. This link expires in <strong>24 hours</strong>.</p>
+            <div style="text-align: center;">
+                <a href="{{verify_link}}" class="button">Confirm New Email Address</a>
+            </div>
+            <div class="warning">
+                <strong>&#9888; Not you?</strong> If you did not request this change, please ignore this email.
+                Your current email address remains active and no changes will be made.
+            </div>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Sahayak. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

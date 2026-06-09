@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { usePresenceStore } from '@/store/presenceStore';
 import { 
@@ -14,6 +14,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 import { logoutUser, getProfile } from '@/services/api/auth';
+import { AccountSettingsModal } from '@/components/account';
 
 export const Header = () => {
   const user = useAuthStore((state) => state.user);
@@ -21,6 +22,7 @@ export const Header = () => {
   const updateUser = useAuthStore((state) => state.updateUser);
   const { myStatus, changeMyStatus } = usePresenceStore();
   const router = useRouter();
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
 
   useEffect(() => {
     const currentUser = useAuthStore.getState().user;
@@ -131,7 +133,9 @@ export const Header = () => {
                       ))}
                     </div>
                   </div>
-                  <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                  <button
+                    onClick={() => setAccountSettingsOpen(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
                     <Settings size={16} />
                     Account Settings
                   </button>
@@ -157,6 +161,10 @@ export const Header = () => {
           </div>
         </div>
       </div>
+      <AccountSettingsModal
+        open={accountSettingsOpen}
+        onClose={() => setAccountSettingsOpen(false)}
+      />
     </header>
   );
 };
