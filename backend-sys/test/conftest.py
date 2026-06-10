@@ -152,6 +152,7 @@ def mock_kafka_consumer():
         return {}
     consumer_mock.getmany = mock_getmany
     
-    with patch("services.api_gateway.routers.chat_routers.chats.AIOKafkaConsumer", return_value=consumer_mock):
+    with patch("services.api_gateway.routers.chat_routers.chats.AIOKafkaConsumer", return_value=consumer_mock), \
+         patch("services.api_gateway.routers.internal_chat.consumer.AIOKafkaConsumer", return_value=consumer_mock):
         yield consumer_mock
 

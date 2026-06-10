@@ -80,7 +80,8 @@ async def test_kafka_chat_worker_consume_inbound():
         update = first_call_args[0][1]
         assert query == {"platform": "telegram", "user.sender_id": 9999}
         assert update["$setOnInsert"]["organization_id"] == "test-org-123"
-        assert update["$setOnInsert"]["bot_name"] == "TestBot"
+        assert "bot_name" not in update["$setOnInsert"]
+        assert update["$setOnInsert"]["bot_id"] is None
         assert update["$setOnInsert"]["chat_id"] == 8888
         assert update["$set"]["user"]["sender_name"] == "Alice"
         assert update["$push"]["messages"]["text"] == "Hello bot"
@@ -292,10 +293,12 @@ async def test_kafka_chat_worker_ai_assignment_existing_conv_no_agent():
     mock_run_agent = AsyncMock(return_value="AI Reply message")
     mock_route_reply = AsyncMock()
     mock_check_ai = AsyncMock(return_value=True) # AI is enabled
+    mock_is_agent_online = AsyncMock(return_value=False)
     
     with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
          patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
          patch.object(telegram_handler_module.TelegramPlatformHandler, "_check_ai_enabled", mock_check_ai), \
+         patch.object(telegram_handler_module.TelegramPlatformHandler, "_is_any_agent_online", mock_is_agent_online), \
          patch.object(agent_module, "run_agent", mock_run_agent), \
          patch.object(chat_service_module, "route_outbound_reply", mock_route_reply):
          
@@ -417,10 +420,12 @@ async def test_kafka_chat_worker_ai_assignment_existing_conv_with_agent():
     mock_run_agent = AsyncMock()
     mock_route_reply = AsyncMock()
     mock_check_ai = AsyncMock(return_value=True) # AI is enabled at org level
+    mock_is_agent_online = AsyncMock(return_value=True) # Agents are online
     
     with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
          patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
          patch.object(telegram_handler_module.TelegramPlatformHandler, "_check_ai_enabled", mock_check_ai), \
+         patch.object(telegram_handler_module.TelegramPlatformHandler, "_is_any_agent_online", mock_is_agent_online), \
          patch.object(agent_module, "run_agent", mock_run_agent), \
          patch.object(chat_service_module, "route_outbound_reply", mock_route_reply):
          
@@ -441,3 +446,121 @@ async def test_kafka_chat_worker_ai_assignment_existing_conv_with_agent():
     # Assert AI agent was NOT run
     mock_run_agent.assert_not_called()
     mock_route_reply.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_kafka_chat_worker_ai_assignment_agent_online_respects_manual_toggle():
+    # Mock MongoDBManager
+    mock_db = MagicMock()
+    mock_db.conversations = AsyncMock()
+    
+    # Mock AIOKafkaConsumer
+    mock_consumer = MagicMock()
+    mock_consumer.start = AsyncMock()
+    mock_consumer.stop = AsyncMock()
+    
+    # Create a mock message pack returned by getmany
+    mock_msg = MagicMock()
+    mock_msg.value = {
+        "org_id": "test-org-123",
+        "bot_name": "TestBot",
+        "bot_token": "mock-token",
+        "platform": "telegram",
+        "direction": "inbound",
+        "payload": {
+            "message": {
+                "message_id": 100,
+                "from": {
+                    "id": 9999,
+                    "first_name": "Alice",
+                    "username": "alice"
+                },
+                "chat": {
+                    "id": 8888
+                },
+                "text": "Hello bot"
+            }
+        }
+    }
+    
+    class MockConsumerPack:
+        def __init__(self, msg):
+            self.msg = msg
+            self.called = False
+            
+        async def getmany(self, timeout_ms=1000):
+            if not self.called:
+                self.called = True
+                return {("chat_service", 0): [self.msg]}
+            else:
+                await asyncio.sleep(0.1)
+                raise asyncio.CancelledError()
+                
+    mock_pack = MockConsumerPack(mock_msg)
+    mock_consumer.getmany = mock_pack.getmany
+
+    worker = KafkaChatWorker()
+    
+    # Existing conversation in database with ai_assigned=True and assigned_user=None
+    # This represents a manual toggle ON.
+    mock_conversation = {
+        "organization_id": "test-org-123",
+        "platform": "telegram",
+        "bot_name": "TestBot",
+        "chat_id": 8888,
+        "user": {
+            "sender_id": 9999,
+            "sender_name": "Alice"
+        },
+        "ai_assigned": True,
+        "assigned_user": None,
+        "messages": [
+            {
+                "message_id": 1,
+                "direction": "inbound",
+                "text": "old message"
+            }
+        ]
+    }
+    
+    mock_updated_conversation = dict(mock_conversation)
+    mock_updated_conversation["ai_assigned"] = True
+    
+    mock_db.conversations.find_one = AsyncMock(side_effect=[
+        mock_conversation,
+        mock_updated_conversation,
+    ])
+    
+    agent_module = importlib.import_module("services.chatai-service.ai.agent")
+    telegram_handler_module = importlib.import_module("services.chatai-service.handlers.telegram_handler")
+    
+    mock_run_agent = AsyncMock(return_value="AI Reply message")
+    mock_route_reply = AsyncMock()
+    mock_check_ai = AsyncMock(return_value=True) # AI is enabled at org level
+    mock_is_agent_online = AsyncMock(return_value=True) # Agents are online
+    
+    with patch.object(chat_worker_module, "AIOKafkaConsumer", return_value=mock_consumer), \
+         patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db), \
+         patch.object(telegram_handler_module.TelegramPlatformHandler, "_check_ai_enabled", mock_check_ai), \
+         patch.object(telegram_handler_module.TelegramPlatformHandler, "_is_any_agent_online", mock_is_agent_online), \
+         patch.object(agent_module, "run_agent", mock_run_agent), \
+         patch.object(chat_service_module, "route_outbound_reply", mock_route_reply):
+         
+        try:
+            await worker.start()
+        except asyncio.CancelledError:
+            pass
+            
+    # Assert conversations.update_one updated/kept ai_assigned as True
+    assert mock_db.conversations.update_one.call_count == 1
+    update_args = mock_db.conversations.update_one.call_args[0]
+    update_query = update_args[0]
+    update_ops = update_args[1]
+    
+    assert update_query == {"platform": "telegram", "user.sender_id": 9999}
+    assert update_ops["$set"]["ai_assigned"] is True
+    
+    # Assert AI agent WAS run because ai_assigned remains True
+    mock_run_agent.assert_called_once()
+    mock_route_reply.assert_called_once()
+

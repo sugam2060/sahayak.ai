@@ -70,11 +70,21 @@ export async function proxy(request: NextRequest) {
           '/connectors': 'connectors',
           '/ai-config': 'ai_config',
           '/team': 'teams',
-          '/org-settings': 'org_settings',
           '/analytics': 'analytics',
         };
 
         if (role !== 'OWNER') {
+          if (normalizedPathname === '/org-settings' || normalizedPathname.startsWith('/org-settings/')) {
+            const response = NextResponse.redirect(new URL('/', request.url));
+            const newCookies = verifyResponse.headers.getSetCookie();
+            if (newCookies && newCookies.length > 0) {
+              newCookies.forEach(cookie => {
+                response.headers.append('Set-Cookie', cookie);
+              });
+            }
+            return response;
+          }
+
           for (const [route, permission] of Object.entries(routePermissions)) {
             if (normalizedPathname === route || normalizedPathname.startsWith(route + '/')) {
               if (!permissions.includes(permission)) {

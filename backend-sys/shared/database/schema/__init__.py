@@ -10,6 +10,7 @@ from shared.database.schema.refresh_tokens import RefreshToken
 from shared.database.schema.audit_logs import AuditLog, AuditEventType
 from shared.database.schema.tickets import Ticket, TicketStatus, TicketPriority
 from shared.database.schema.customers import Customer
+from shared.database.schema.internal_chat_mongo import InternalConversationMongo, InternalMessageDetail, CustomerChatRequestDetail
 
 __all__ = [
     "Base",
@@ -30,4 +31,8 @@ __all__ = [
     "TicketStatus",
     "TicketPriority",
     "Customer",
+    "InternalConversationMongo",
+    "InternalMessageDetail",
+    "CustomerChatRequestDetail",
 ]
+

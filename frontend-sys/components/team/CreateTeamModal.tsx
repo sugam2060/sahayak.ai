@@ -43,7 +43,6 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'ai_config', label: 'AI Bot Configuration', description: 'Manage AI agent settings and prompts' },
   { id: 'chats', label: 'Inbox Chat & Live Assist', description: 'Read, reply, assign and mark chats as read' },
   { id: 'teams', label: 'Team Management', description: 'Create teams and configure user assignments' },
-  { id: 'org_settings', label: 'Organization Settings', description: 'Manage organization settings, name, and delete options' },
   { id: 'analytics', label: 'Analytics & Reports', description: 'View business analytics, sales trends, and performance reports' },
 ];
 

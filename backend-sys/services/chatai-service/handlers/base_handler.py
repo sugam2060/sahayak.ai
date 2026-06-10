@@ -13,6 +13,28 @@ class BasePlatformHandler(ABC):
     def db(self):
         return MongoDBManager.get_db()
 
+    async def _is_any_agent_online(self, org_id: str) -> bool:
+        """Check if any agent with 'chats' permission is online for the organization."""
+        try:
+            from shared.database.engine import SessionLocal
+            from services.api_gateway.routers.chat_routers.handoff_service import get_eligible_online_users
+            from services.api_gateway.routers.presence.presence_service import PresenceService
+            from shared.redis_pool import RedisPool
+
+            redis_client = RedisPool.get_client()
+            presence_service = PresenceService(redis_client)
+            async with SessionLocal() as db_session:
+                online_agents = await get_eligible_online_users(
+                    org_id=org_id,
+                    db=db_session,
+                    presence_service=presence_service,
+                    exclude_user_id=""
+                )
+            return len(online_agents) > 0
+        except Exception as e:
+            logger.error(f"Error checking online agents for org {org_id}: {e}", exc_info=True)
+            return False
+
     @abstractmethod
     async def handle_inbound(self, event: dict) -> None:
         pass

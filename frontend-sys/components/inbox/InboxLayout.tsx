@@ -125,6 +125,83 @@ const InboxLayout = () => {
               chats: chatsList
             };
           });
+        } else if (data.type === 'chat_lock_update') {
+          const { platform, sender_id, bot_id, locker_name } = data;
+          if (!platform || !sender_id) return;
+          const sender_id_str = String(sender_id);
+
+          // 1. Update the chat history cache for this conversation
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
+            if (!oldData || !oldData.chat) return oldData;
+            return {
+              ...oldData,
+              chat: {
+                ...oldData.chat,
+                bot_id: bot_id,
+                locker_name: locker_name,
+                ai_assigned: bot_id === 'ai',
+                handoff_pending: false
+              }
+            };
+          });
+
+          // 2. Update the main chats list cache
+          queryClient.setQueryData(['chats', user.organization_id], (oldData: any) => {
+            if (!oldData || !oldData.chats) return oldData;
+            const chatsList = [...oldData.chats];
+            const idx = chatsList.findIndex(
+              (c: any) => c.platform === platform && String(c.user.sender_id) === sender_id_str
+            );
+            if (idx !== -1) {
+              chatsList[idx] = {
+                ...chatsList[idx],
+                bot_id: bot_id,
+                locker_name: locker_name,
+                ai_assigned: bot_id === 'ai',
+                handoff_pending: false
+              };
+            }
+            return {
+              ...oldData,
+              chats: chatsList
+            };
+          });
+        } else if (data.type === 'handoff_status_updated') {
+          const { platform, sender_id, status } = data;
+          if (!platform || !sender_id) return;
+          const sender_id_str = String(sender_id);
+          const handoffPending = status === 'pending';
+
+          // 1. Update the chat history cache for this conversation
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
+            if (!oldData || !oldData.chat) return oldData;
+            return {
+              ...oldData,
+              chat: {
+                ...oldData.chat,
+                handoff_pending: handoffPending
+              }
+            };
+          });
+
+          // 2. Update the main chats list cache
+          queryClient.setQueryData(['chats', user.organization_id], (oldData: any) => {
+            if (!oldData || !oldData.chats) return oldData;
+            const chatsList = [...oldData.chats];
+            const idx = chatsList.findIndex(
+              (c: any) => c.platform === platform && String(c.user.sender_id) === sender_id_str
+            );
+            if (idx !== -1) {
+              chatsList[idx] = {
+                ...chatsList[idx],
+                handoff_pending: handoffPending
+              };
+            }
+            return {
+              ...oldData,
+              chats: chatsList
+            };
+          });
         } else if (data.type === 'ai_assigned_toggle') {
           const { platform, sender_id, ai_assigned } = data;
           const sender_id_str = String(sender_id);

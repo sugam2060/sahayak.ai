@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Plus, MoreHorizontal, ImageIcon, Package, ShoppingBag, Sparkles, Send, CheckCircle2, Smile, Menu, Ticket } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaTwitter, FaTiktok, FaWhatsapp, FaFacebookMessenger } from 'react-icons/fa';
-import { useChatHistory, useSendReply, useToggleAI, useMarkChatAsRead } from '@/services/api/chats';
+import { useChatHistory, useSendReply, useToggleAI, useMarkChatAsRead, useLockChat, useRequestHandoff } from '@/services/api/chats';
 import { ContextPanel } from './ContextPanel';
 import { useAuthStore } from '@/store/authStore';
 import dynamic from 'next/dynamic';
@@ -85,11 +85,33 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   const sendReplyMutation = useSendReply();
   const toggleAIMutation = useToggleAI();
   const markReadMutation = useMarkChatAsRead();
+  const lockChatMutation = useLockChat();
+  const requestHandoffMutation = useRequestHandoff();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const chat = data?.chat;
   const messages = chat?.messages || [];
+
+  const botId = chat?.bot_id;
+  const isLockedByAI = botId === 'ai';
+  const isLockedByOther = !!(botId && botId !== 'ai' && botId !== user?.user_id);
+  const isLockedByMe = botId === user?.user_id;
+
+  const isInputDisabled = !chat || isLoading || !!error || isLockedByOther || isLockedByAI;
+
+  const handleClaimLock = async () => {
+    if (!selectedChat || !user) return;
+    try {
+      await lockChatMutation.mutateAsync({
+        sender_id: selectedChat.senderId,
+        platform: selectedChat.platform,
+        bot_id: user.user_id || null,
+      });
+    } catch (err) {
+      console.error('Failed to claim lock:', err);
+    }
+  };
 
   // Trigger mark read when chat is selected or new messages arrive
   useEffect(() => {
@@ -536,6 +558,66 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
       {/* Reply Bar */}
       <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-4 border-t border-indigo-100/50 bg-white/80 backdrop-blur-xl space-y-4 relative">
+        {/* Lock Status Banner */}
+        {isLockedByOther && (
+          <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-800 font-semibold animate-in fade-in slide-in-from-bottom-1 select-none">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              <span>
+                Handled by <strong className="font-bold">{chat?.locker_name || 'another agent'}</strong>. You cannot send messages.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!selectedChat) return;
+                try {
+                  await requestHandoffMutation.mutateAsync({
+                    platform: selectedChat.platform,
+                    sender_id: selectedChat.senderId,
+                  });
+                } catch (err) {
+                  console.error('Failed to request handoff:', err);
+                }
+              }}
+              disabled={requestHandoffMutation.isPending || chat?.handoff_pending}
+              className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+            >
+              {chat?.handoff_pending
+                ? 'Handoff Requested'
+                : requestHandoffMutation.isPending
+                ? 'Requesting...'
+                : 'Request Handoff'}
+            </button>
+          </div>
+        )}
+
+        {isLockedByAI && (
+          <div className="flex items-center justify-between p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-800 font-semibold animate-in fade-in slide-in-from-bottom-1 select-none">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+              <span>AI Auto-Reply is active. The conversation is managed by AI.</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleClaimLock}
+              disabled={lockChatMutation.isPending}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+            >
+              Claim & Reply
+            </button>
+          </div>
+        )}
+
+        {isLockedByMe && (
+          <div className="flex items-center p-3.5 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 font-semibold animate-in fade-in slide-in-from-bottom-1 select-none">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>You are handling this conversation.</span>
+            </div>
+          </div>
+        )}
+
         {/* Actions Popup Menu */}
         {showActions && (
           <div className="absolute left-6 bottom-20 bg-white border border-indigo-50 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 z-20 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -545,7 +627,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 setShowActions(false);
                 setIsCreateTicketOpen(true);
               }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
+              disabled={isInputDisabled}
+              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer disabled:opacity-50"
             >
               <Ticket className="w-4 h-4 text-indigo-500" />
               <span>Create Ticket</span>
@@ -556,7 +639,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 setShowActions(false);
                 fileInputRef.current?.click();
               }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
+              disabled={isInputDisabled}
+              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer disabled:opacity-50"
             >
               <ImageIcon className="w-4 h-4 text-pink-500" />
               <span>Upload Image</span>
@@ -567,7 +651,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 setShowActions(false);
                 setIsProductSelectorOpen(true);
               }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
+              disabled={isInputDisabled}
+              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer disabled:opacity-50"
             >
               <Package className="w-4 h-4 text-amber-500" />
               <span>Add Product</span>
@@ -578,7 +663,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 setShowActions(false);
                 setIsCreateOrderOpen(true);
               }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
+              disabled={isInputDisabled}
+              className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer disabled:opacity-50"
             >
               <ShoppingBag className="w-4 h-4 text-teal-500" />
               <span>Create Order</span>
@@ -606,7 +692,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           <button
             type="button"
             onClick={() => setShowActions(!showActions)}
-            className={`flex-shrink-0 h-[46px] w-[46px] rounded-xl flex items-center justify-center border transition-all cursor-pointer
+            disabled={isInputDisabled}
+            className={`flex-shrink-0 h-[46px] w-[46px] rounded-xl flex items-center justify-center border transition-all cursor-pointer disabled:opacity-50
               ${showActions ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
           >
             <Plus className={`w-5 h-5 transition-transform duration-200 ${showActions ? 'rotate-45' : ''}`} />
@@ -615,11 +702,17 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           {/* Text Area Input */}
           <div className="flex-1 relative flex items-center">
             <textarea
-              placeholder={`Reply to ${chat?.user.sender_name || 'customer'}...`}
+              placeholder={
+                isLockedByAI 
+                  ? "Locked by AI Auto-Reply" 
+                  : isLockedByOther 
+                    ? `Locked by ${chat?.locker_name || 'another agent'}` 
+                    : `Reply to ${chat?.user.sender_name || 'customer'}...`
+              }
               {...register('text')}
               onKeyDown={handleKeyDown}
-              disabled={sendReplyMutation.isPending}
-              className="w-full bg-slate-100/50 border border-slate-200/80 rounded-xl pl-4 pr-20 py-3 text-sm focus:outline-none focus:border-indigo-600/30 transition-all resize-none min-h-[46px] max-h-40 placeholder:text-slate-400 leading-normal"
+              disabled={sendReplyMutation.isPending || isInputDisabled}
+              className="w-full bg-slate-100/50 border border-slate-200/80 rounded-xl pl-4 pr-20 py-3 text-sm focus:outline-none focus:border-indigo-600/30 transition-all resize-none min-h-[46px] max-h-40 placeholder:text-slate-400 leading-normal disabled:cursor-not-allowed"
               rows={1}
               style={{ height: '46px' }}
             />
@@ -630,12 +723,17 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className={`p-1 rounded text-slate-400 transition-colors cursor-pointer hover:text-indigo-500
+                disabled={isInputDisabled}
+                className={`p-1 rounded text-slate-400 transition-colors cursor-pointer hover:text-indigo-500 disabled:opacity-50
                   ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : ''}`}
               >
                 <Smile className="w-4 h-4" />
               </button>
-              <button type="button" className="p-1 rounded text-slate-400 hover:text-indigo-500 transition-all cursor-pointer">
+              <button 
+                type="button" 
+                disabled={isInputDisabled}
+                className="p-1 rounded text-slate-400 hover:text-indigo-500 transition-all cursor-pointer disabled:opacity-50"
+              >
                 <Sparkles className="w-4 h-4" />
               </button>
             </div>
@@ -644,7 +742,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           {/* Send Button */}
           <button
             type="submit"
-            disabled={sendReplyMutation.isPending}
+            disabled={sendReplyMutation.isPending || isInputDisabled}
             className="h-[46px] w-[46px] flex-shrink-0 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             {sendReplyMutation.isPending ? (

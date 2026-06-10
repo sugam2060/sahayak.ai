@@ -155,3 +155,91 @@ export const useMarkChatAsRead = () => {
     },
   });
 };
+
+export const useLockChat = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (req: { sender_id: string | number; platform: string; bot_id: string | null }) => {
+      const response = await fetch(`${API_BASE_URL}/api/chats/lock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(req),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to update chat lock.');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['chat-history', variables.platform, String(variables.sender_id)],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['chats'],
+      });
+    },
+  });
+};
+
+export const useRequestHandoff = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (req: { platform: string; sender_id: string | number }) => {
+      const response = await fetch(`${API_BASE_URL}/api/chats/handoff/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(req),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to request handoff.');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+      queryClient.invalidateQueries({ queryKey: ['chat-history'] });
+    },
+  });
+};
+
+export const useRespondHandoff = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (req: { handoff_id: string; action: 'grant' | 'decline' }) => {
+      const response = await fetch(`${API_BASE_URL}/api/chats/handoff/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(req),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to respond to handoff.');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+      queryClient.invalidateQueries({ queryKey: ['chat-history'] });
+    },
+  });
+};

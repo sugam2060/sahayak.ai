@@ -46,7 +46,8 @@ class ChatRouter:
         sender_id: Union[int, str],
         text: str,
         image_url: str = None,
-        ig_account_id: str = None
+        ig_account_id: str = None,
+        assigned_user: str = None
     ):
         """
         Generic outbound reply routing for all social media platforms.
@@ -61,7 +62,8 @@ class ChatRouter:
             "sender_id": sender_id,
             "text": text,
             "image_url": image_url,
-            "ig_account_id": ig_account_id
+            "ig_account_id": ig_account_id,
+            "assigned_user": assigned_user
         }
         
         logger.info(f"Producing outbound {platform} reply to chat_service Kafka topic.")

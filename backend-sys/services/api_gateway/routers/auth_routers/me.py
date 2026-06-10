@@ -11,7 +11,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 async def get_user_permissions(db: AsyncSession, user_id_str: str, role: str) -> list[str]:
     role = role.upper()
-    all_permissions = ["products", "orders", "tickets", "connectors", "ai_config", "chats", "teams", "org_settings", "analytics"]
+    all_permissions = ["products", "orders", "tickets", "connectors", "ai_config", "chats", "teams", "analytics", "internal_chat:request_customer", "chat:claim", "chat:read", "chat:request_handoff", "chat:grant_handoff", "chat:view_handled"]
     if role == "OWNER":
         return all_permissions
     
@@ -23,8 +23,24 @@ async def get_user_permissions(db: AsyncSession, user_id_str: str, role: str) ->
             .where(TeamMember.user_id == user_id)
         )
         res = await db.execute(stmt)
-        permissions = res.scalar_one_or_none()
-        return permissions or []
+        permissions = res.scalar_one_or_none() or []
+        
+        # Ensure we can mutate the list and append sub-permissions if "chats" is present
+        permissions_list = list(permissions)
+        if "chats" in permissions_list:
+            chat_sub_perms = [
+                "chat:claim", 
+                "chat:read", 
+                "chat:request_handoff", 
+                "chat:grant_handoff", 
+                "chat:view_handled", 
+                "internal_chat:request_customer"
+            ]
+            for perm in chat_sub_perms:
+                if perm not in permissions_list:
+                    permissions_list.append(perm)
+                    
+        return permissions_list
     except Exception as e:
         print(f"Error querying permissions for user {user_id_str}: {e}")
         return []

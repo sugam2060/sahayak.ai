@@ -28,20 +28,28 @@ async def serve():
     chat_worker = chat_worker_module.KafkaChatWorker()
     chat_worker_task = asyncio.create_task(chat_worker.start())
 
+    # Start Kafka consumer Internal Chat Worker in background
+    internal_chat_worker_module = importlib.import_module("services.chatai-service.internal_chat.worker")
+    KafkaInternalChatWorker = internal_chat_worker_module.KafkaInternalChatWorker
+    internal_chat_worker = KafkaInternalChatWorker()
+    internal_chat_worker_task = asyncio.create_task(internal_chat_worker.start())
+
     print("ChatAI Service (Kafka-based) successfully started.")
     
     try:
-        # Run a loop to keep the main task alive while the worker is running
-        while chat_worker.should_run:
+        # Run a loop to keep the main task alive while the workers are running
+        while chat_worker.should_run and internal_chat_worker.should_run:
             await asyncio.sleep(1)
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
-        # Gracefully shutdown consumer and close MongoDB client
+        # Gracefully shutdown consumers and close MongoDB client
         print("Stopping ChatAI Service...")
         await chat_worker.shutdown()
-        await chat_worker_task
+        await internal_chat_worker.shutdown()
+        await asyncio.gather(chat_worker_task, internal_chat_worker_task, return_exceptions=True)
         await MongoDBManager.close()
+
 
 if __name__ == "__main__":
     asyncio.run(serve())

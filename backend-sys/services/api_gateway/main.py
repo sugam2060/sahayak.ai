@@ -47,8 +47,10 @@ async def lifespan(app: FastAPI):
     
     # Start WebSocket consumer task
     from services.api_gateway.routers.chat_routers.chats import start_ws_kafka_consumer, stop_ws_kafka_consumer
+    from services.api_gateway.routers.internal_chat.consumer import ws_consumer
     try:
         await start_ws_kafka_consumer()
+        await ws_consumer.start()
     except Exception as e:
         print(f"Failed to start WebSocket Kafka consumer on Gateway startup: {e}")
         
@@ -65,6 +67,7 @@ async def lifespan(app: FastAPI):
     # Shutdown: Close Presence systems, gRPC Channels, and MongoDB client
     await stop_presence_subscriber()
     await stop_presence_listener()
+    await ws_consumer.stop()
     await stop_ws_kafka_consumer()
     await auth_channel.close()
     await workers_channel.close()
@@ -111,6 +114,8 @@ app.include_router(connector_route.router)
 app.include_router(telegram_webhook_router)
 app.include_router(instagram_webhook_router)
 app.include_router(chats_router)
+from services.api_gateway.routers.internal_chat.router import router as internal_chat_router
+app.include_router(internal_chat_router)
 app.include_router(products.router)
 app.include_router(orders.router)
 app.include_router(ai_config_router)

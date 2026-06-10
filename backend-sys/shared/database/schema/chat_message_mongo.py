@@ -28,12 +28,13 @@ class ConversationUser(BaseModel):
 class ConversationMongo(BaseModel):
     organization_id: str = Field(..., description="References PostgreSQL Organization ID")
     platform: str = Field(..., description="e.g. telegram")
-    bot_name: str = Field(..., description="Name of the bot handling this conversation")
+    bot_id: Optional[str] = Field(default=None, description="ID of the user or AI bot currently locking this conversation")
     chat_id: Union[int, str] = Field(..., description="Telegram chat ID or other platform equivalent")
     user: ConversationUser = Field(..., description="The user participating in the conversation")
     messages: List[MessageDetail] = Field(default_factory=list, description="Array of messages in this conversation")
     ai_assigned: bool = Field(default=False, description="Whether this conversation is handled automatically by AI")
     assigned_user: Optional[str] = Field(None, description="UUID of the user/agent assigned to this conversation")
+    allowed_users: List[str] = Field(default_factory=list, description="List of user UUIDs allowed to access this conversation when locked")
     previous_summary: Optional[str] = Field(None, description="Summarized history of past messages")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -41,3 +42,4 @@ class ConversationMongo(BaseModel):
     model_config = {
         "populate_by_name": True
     }
+

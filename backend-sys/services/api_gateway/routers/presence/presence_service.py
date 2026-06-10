@@ -160,3 +160,11 @@ class PresenceService:
         }
         channel = self.channel_key(org_id)
         await self.redis.publish(channel, json.dumps(event))
+
+        if status == "offline":
+            try:
+                import asyncio
+                from services.api_gateway.routers.chat_routers.handoff_service import handle_user_offline
+                asyncio.create_task(handle_user_offline(org_id, user_id))
+            except Exception as e:
+                logger.error(f"Failed to trigger handoff check on user offline: {e}")

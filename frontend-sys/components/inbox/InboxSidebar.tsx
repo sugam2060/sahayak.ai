@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, MessageCircle } from 'lucide-react';
+import { Search, Filter, MessageCircle, Lock } from 'lucide-react';
 import { FaInstagram, FaTwitter, FaTelegram, FaTiktok, FaWhatsapp, FaFacebookMessenger } from 'react-icons/fa';
 import { useChats } from '@/services/api/chats';
 import { useAuthStore } from '@/store/authStore';
@@ -204,10 +204,16 @@ export const InboxSidebar = ({ selectedChat, setSelectedChat }: InboxSidebarProp
                   {lastText}
                 </p>
                 <div className="flex items-center justify-between">
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 items-center">
                     <span className="px-1.5 py-0.5 bg-indigo-50 text-[9px] font-bold text-indigo-600 rounded-sm uppercase tracking-tight">
                       {convo.platform}
                     </span>
+                    {convo.locker_name && (
+                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-[9px] font-bold text-amber-700 rounded-sm border border-amber-100">
+                        <Lock className="w-2.5 h-2.5" />
+                        {convo.locker_name}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

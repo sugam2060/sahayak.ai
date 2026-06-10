@@ -136,10 +136,28 @@ class InstagramPlatformHandler(BasePlatformHandler):
             "profile_pic": profile_pic
         }
         
-        # Determine ai_assigned dynamically based on org config and human assignment
+        # Determine ai_assigned dynamically based on org config, active locks, and human assignment
         ai_enabled = await self._check_ai_enabled(org_id)
-        assigned_user = conv.get("assigned_user") if conv else None
-        ai_assigned = True if (ai_enabled and not assigned_user) else False
+        if not ai_enabled:
+            ai_assigned = False
+        else:
+            bot_id = conv.get("bot_id") if conv else None
+            # If conversation is actively locked by a human user, AI is not assigned
+            if bot_id and bot_id != "ai":
+                ai_assigned = False
+            else:
+                # Check if any agents with chat permissions are online
+                any_agent_online = await self._is_any_agent_online(org_id)
+                if any_agent_online:
+                    assigned_user = conv.get("assigned_user") if conv else None
+                    if assigned_user:
+                        ai_assigned = False
+                    else:
+                        # Respect manually toggled AI state if conversation exists, otherwise default to False
+                        ai_assigned = conv.get("ai_assigned", False) if conv else False
+                else:
+                    # No agents online: AI auto reply takes over
+                    ai_assigned = True
         
         now = datetime.now(timezone.utc)
         await self.db.conversations.update_one({
@@ -148,7 +166,7 @@ class InstagramPlatformHandler(BasePlatformHandler):
         }, {
             "$setOnInsert": {
                 "organization_id": org_id,
-                "bot_name": bot_name,
+                "bot_id": "ai" if ai_assigned else None,
                 "chat_id": chat_id,
                 "created_at": now
             },
@@ -261,6 +279,8 @@ class InstagramPlatformHandler(BasePlatformHandler):
         from ..chat_service import remove_markdown
         cleaned_text = remove_markdown(text)
         
+        assigned_user = event.get("assigned_user")
+
         outbound_msg = MessageDetail(
             message_id=next_message_id,
             direction="outbound",
@@ -269,6 +289,7 @@ class InstagramPlatformHandler(BasePlatformHandler):
             text=cleaned_text,
             image_url=image_url,
             intent=MessageIntent.NO_INTENT,
+            assigned_user=assigned_user,
             created_at=datetime.now(timezone.utc)
         )
         

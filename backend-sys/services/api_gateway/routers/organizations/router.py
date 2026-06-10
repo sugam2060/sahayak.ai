@@ -4,7 +4,7 @@ from uuid import UUID
 
 from shared.utils import get_db
 from shared.redis_pool import RedisPool
-from services.api_gateway.routers.teams.permissions import check_permission
+from services.api_gateway.routers.teams.permissions import require_owner
 from services.api_gateway.routers.organizations.schemas import OrganizationUpdate, OrganizationResponse
 from services.api_gateway.routers.organizations.crud import OrganizationCRUD
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/organizations", tags=["Organization Management"]
 
 @router.get("/current", response_model=OrganizationResponse)
 async def get_current_organization(
-    current_user: dict = Depends(check_permission("org_settings")),
+    current_user: dict = Depends(require_owner()),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -39,7 +39,7 @@ async def get_current_organization(
 @router.put("/current", response_model=OrganizationResponse)
 async def update_current_organization(
     data: OrganizationUpdate,
-    current_user: dict = Depends(check_permission("org_settings")),
+    current_user: dict = Depends(require_owner()),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -68,7 +68,7 @@ async def update_current_organization(
 
 @router.delete("/current")
 async def deactivate_current_organization(
-    current_user: dict = Depends(check_permission("org_settings")),
+    current_user: dict = Depends(require_owner()),
     db: AsyncSession = Depends(get_db)
 ):
     """

@@ -21,11 +21,13 @@ export interface Conversation {
   _id: string;
   organization_id: string;
   platform: string;
-  bot_name: string;
+  bot_id: string | null;
+  locker_name?: string | null;
   chat_id: string | number;
   user: ConversationUser;
   messages: MessageDetail[];
   ai_assigned: boolean;
+  handoff_pending?: boolean;
   created_at: string;
   updated_at: string;
 }

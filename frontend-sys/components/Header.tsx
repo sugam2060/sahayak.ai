@@ -137,7 +137,7 @@ export const Header = () => {
                     <Settings size={16} />
                     Account Settings
                   </button>
-                  {(user?.role?.toUpperCase() === 'OWNER' || user?.permissions?.includes('org_settings')) && (
+                  {(user?.role?.toUpperCase() === 'OWNER') && (
                     // <button 
                     //   onClick={() => router.push('/org-settings')}
                     //   className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"

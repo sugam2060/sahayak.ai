@@ -8,6 +8,7 @@ def mock_mongo_db():
     mock_db = MagicMock()
     mock_db.conversations = MagicMock()
     mock_db.conversations.find_one = AsyncMock()
+    mock_db.conversations.update_one = AsyncMock()
     with patch("shared.database.mongodb.MongoDBManager.get_db", return_value=mock_db):
         yield mock_db
 
@@ -101,7 +102,8 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
     mock_user = User(
         id=UUID("22222222-3333-4444-5555-666666666666"),
         organization_id=UUID("11111111-2222-3333-4444-555555555555"),
-        role=UserRole.OWNER
+        role=UserRole.OWNER,
+        full_name="Alice Owner"
     )
 
     # 1. Mock conversation retrieval in MongoDB
@@ -118,7 +120,8 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
     mock_connector = PlatformConnector(
         business_id="11111111-2222-3333-4444-555555555555",
         platform="telegram",
-        tokens={"bot_token": "123456:ABC-DEF-GHI"}
+        tokens={"bot_token": "123456:ABC-DEF-GHI"},
+        platform_account_name="TestBot"
     )
     
     mock_result_user = MagicMock()
@@ -127,7 +130,11 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
     mock_result_connectors = MagicMock()
     mock_result_connectors.scalars.return_value.all.return_value = [mock_connector]
     
-    mock_db_session.execute.side_effect = [mock_result_user, mock_result_connectors]
+    mock_db_session.execute.side_effect = [
+        mock_result_user,       # for check_chat_access
+        mock_result_user,       # for get_user_name_by_id during auto-claim
+        mock_result_connectors  # for platform connector lookup
+    ]
     
     # 3. Call endpoint and assert
     payload = {
@@ -145,13 +152,14 @@ def test_send_chat_reply_success(test_client, override_chats_db, mock_db_session
         
         mock_route.assert_called_once_with(
             org_id="11111111-2222-3333-4444-555555555555",
-            bot_name=None,
+            bot_name="TestBot",
             bot_token="123456:ABC-DEF-GHI",
             platform="telegram",
             chat_id=8888,
             sender_id=9999,
             text="Hello client reply",
-            ig_account_id=None
+            ig_account_id=None,
+            assigned_user="22222222-3333-4444-5555-666666666666"
         )
 
 def test_toggle_ai_success(test_client, mock_mongo_db):
@@ -179,3 +187,77 @@ def test_toggle_ai_success(test_client, mock_mongo_db):
         assert data["success"] is True
         assert data["ai_assigned"] is True
         mock_mongo_db.conversations.update_one.assert_called_once()
+
+def test_lock_chat_success(test_client, override_chats_db, mock_db_session, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
+    
+    from shared.database.schema.users import User, UserRole
+    from uuid import UUID
+    mock_user = User(
+        id=UUID("22222222-3333-4444-5555-666666666666"),
+        organization_id=UUID("11111111-2222-3333-4444-555555555555"),
+        role=UserRole.OWNER,
+        full_name="Alice Owner"
+    )
+    mock_result_user = MagicMock()
+    mock_result_user.scalar_one_or_none.return_value = mock_user
+    mock_db_session.execute.return_value = mock_result_user
+    
+    mock_conversation = {
+        "_id": "60c72b2f9b1d8e1f5c8b4567",
+        "organization_id": "11111111-2222-3333-4444-555555555555",
+        "platform": "telegram",
+        "bot_id": None,
+        "user": {"sender_id": 9999}
+    }
+    mock_mongo_db.conversations.find_one.return_value = mock_conversation
+
+    payload = {
+        "sender_id": 9999,
+        "platform": "telegram",
+        "bot_id": "22222222-3333-4444-5555-666666666666"
+    }
+
+    with patch("services.api_gateway.routers.chat_routers.chats.manager.broadcast", new_callable=AsyncMock):
+        response = test_client.post("/api/chats/lock", json=payload)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        assert data["bot_id"] == "22222222-3333-4444-5555-666666666666"
+
+def test_handoff_request_success(test_client, override_chats_db, mock_db_session, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
+    
+    from shared.database.schema.users import User, UserRole
+    from uuid import UUID
+    mock_user = User(
+        id=UUID("22222222-3333-4444-5555-666666666666"),
+        organization_id=UUID("11111111-2222-3333-4444-555555555555"),
+        role=UserRole.AGENT,
+        full_name="Agent Bob"
+    )
+    mock_result_user = MagicMock()
+    mock_result_user.scalar_one_or_none.return_value = mock_user
+    mock_db_session.execute.return_value = mock_result_user
+    
+    mock_conversation = {
+        "_id": "60c72b2f9b1d8e1f5c8b4567",
+        "organization_id": "11111111-2222-3333-4444-555555555555",
+        "platform": "telegram",
+        "bot_id": "other-agent-id",
+        "user": {"sender_id": 9999}
+    }
+    mock_mongo_db.conversations.find_one.return_value = mock_conversation
+
+    payload = {
+        "platform": "telegram",
+        "sender_id": 9999
+    }
+
+    with patch("services.api_gateway.routers.chat_routers.handoff_service.ChatHandoffService.request_handoff", new_callable=AsyncMock) as mock_req:
+        mock_req.return_value = {"id": "req-123", "status": "pending"}
+        response = test_client.post("/api/chats/handoff/request", json=payload)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        assert data["handoff"]["status"] == "pending"

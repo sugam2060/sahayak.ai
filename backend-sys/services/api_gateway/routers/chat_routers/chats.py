@@ -9,8 +9,9 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from services.api_gateway.routers.teams.permissions import check_permission
 from shared.database.schema.users import User, UserRole
-from uuid import UUID
+from uuid import UUID, uuid4
 import logging
+from services.api_gateway.routers.chat_routers.handoff_service import ChatLockManager, ChatHandoffService
 
 logger = logging.getLogger("api_gateway.chats")
 
@@ -51,10 +52,27 @@ async def check_chat_access(platform: str, sender_id: Union[int, str], user_id: 
     # 3. Check assignment boundaries
     assigned_user = conv.get("assigned_user")
     if assigned_user:
+        allowed_users = conv.get("allowed_users", [])
+        if str(user_id) in [str(u) for u in allowed_users]:
+            return True
         return str(assigned_user) == str(user_id) or role == "OWNER"
 
     # If unassigned, any authorized user (OWNER or someone with "chats" permission) is allowed
     return True
+
+
+async def get_user_name_by_id(db_session: AsyncSession, user_id_str: str) -> Optional[str]:
+    if not user_id_str:
+        return None
+    try:
+        from uuid import UUID
+        user_uuid = UUID(user_id_str)
+        user_stmt = select(User).where(User.id == user_uuid)
+        user_result = await db_session.execute(user_stmt)
+        db_user = user_result.scalar_one_or_none()
+        return db_user.full_name if db_user else None
+    except Exception:
+        return None
 
 
 router = APIRouter(prefix="/api/chats", tags=["Chat Management"])
@@ -79,10 +97,24 @@ class ToggleAIAssignedRequest(BaseModel):
     platform: str
     ai_assigned: bool
 
+class LockChatRequest(BaseModel):
+    sender_id: Union[int, str]
+    platform: str
+    bot_id: Optional[str] = None
+
+class HandoffRequestModel(BaseModel):
+    platform: str
+    sender_id: Union[int, str]
+
+class HandoffRespondModel(BaseModel):
+    handoff_id: str
+    action: str  # "grant" or "decline"
+
 @router.get("")
 async def get_chat_list(
     organization_id: Optional[str] = None,
-    current_user: dict = Depends(check_permission("chats"))
+    current_user: dict = Depends(check_permission("chats")),
+    db_session: AsyncSession = Depends(get_db)
 ):
     """
     Get all conversations/chats, optionally filtered by organization_id.
@@ -96,14 +128,99 @@ async def get_chat_list(
             
         # Retrieve all conversations, sorted by updated_at descending
         cursor = db.conversations.find(query).sort("updated_at", -1)
+        
+        # Fetch active Redis locks for this org
+        try:
+            active_locks = await ChatLockManager.get_active_locks_for_org(org_filter)
+        except Exception as lock_err:
+            logger.warning(f"Failed to fetch Redis locks for org {org_filter}: {lock_err}")
+            active_locks = {}
+
+        # Fetch all pending handoff requests for this org
+        pending_conv_ids = set()
+        try:
+            cursor_pending = db.internal_conversations.find({
+                "org_id": org_filter,
+                "messages": {
+                    "$elemMatch": {
+                        "handoff_request.status": "pending"
+                    }
+                }
+            })
+            async for pending_doc in cursor_pending:
+                for msg in pending_doc.get("messages", []):
+                    hr = msg.get("handoff_request")
+                    if hr and hr.get("status") == "pending":
+                        pending_conv_ids.add(str(hr.get("conversation_id")))
+        except Exception as pending_err:
+            logger.warning(f"Failed to fetch pending handoffs for org {org_filter}: {pending_err}")
+
+        # Check permissions for viewing handled chats
+        has_view_handled = (
+            current_user.get("role", "").upper() == "OWNER" or
+            "chat:view_handled" in current_user.get("permissions", [])
+        )
+
         chats = []
+        bot_ids_to_resolve = set()
         async for doc in cursor:
             # Convert ObjectId to string for JSON serialization
             doc["_id"] = str(doc["_id"])
             # Remove large/binary checkpointer data to avoid serialization errors
             doc.pop("checkpoint", None)
             doc.pop("metadata", None)
+            
+            # Resolve bot_id (Redis lock takes precedence over MongoDB bot_id)
+            conv_id = doc["_id"]
+            redis_lock = active_locks.get(conv_id)
+            resolved_bot_id = None
+            if redis_lock:
+                resolved_bot_id = redis_lock.get("user_id")
+                doc["bot_id"] = resolved_bot_id
+                doc["locker_name"] = redis_lock.get("user_name") or None
+                if doc["locker_name"]:
+                    pass  # Already resolved from Redis
+                else:
+                    bot_ids_to_resolve.add(resolved_bot_id)
+            else:
+                resolved_bot_id = doc.get("bot_id")
+                if resolved_bot_id == "ai":
+                    doc["locker_name"] = "AI"
+                elif resolved_bot_id:
+                    bot_ids_to_resolve.add(resolved_bot_id)
+                else:
+                    doc["locker_name"] = None
+
+            # Enforce "chat:view_handled" permission
+            if resolved_bot_id and resolved_bot_id != "ai" and resolved_bot_id != current_user["user_id"]:
+                if not has_view_handled:
+                    continue
+                
+            doc["handoff_pending"] = conv_id in pending_conv_ids
             chats.append(doc)
+            
+        # Resolve names from SQL
+        if bot_ids_to_resolve:
+            try:
+                from uuid import UUID
+                uuids = []
+                for b_id in bot_ids_to_resolve:
+                    try:
+                        uuids.append(UUID(b_id))
+                    except Exception:
+                        pass
+                if uuids:
+                    stmt = select(User.id, User.full_name).where(User.id.in_(uuids))
+                    result = await db_session.execute(stmt)
+                    user_map = {str(uid): name for uid, name in result.all()}
+                    
+                    for doc in chats:
+                        b_id = doc.get("bot_id")
+                        if b_id and b_id in user_map:
+                            doc["locker_name"] = user_map[b_id]
+            except Exception as e:
+                logger.error(f"Error resolving locker names for chats list: {e}")
+                
         return {"success": True, "chats": chats}
     except Exception as e:
         raise HTTPException(
@@ -148,6 +265,54 @@ async def get_chat_history(
         # Remove large/binary checkpointer data to avoid serialization errors
         doc.pop("checkpoint", None)
         doc.pop("metadata", None)
+        
+        # Derive lock state from Redis first, fallback to MongoDB bot_id
+        conv_id = doc["_id"]
+        try:
+            redis_lock = await ChatLockManager.get_lock(doc.get("organization_id", current_user["organization_id"]), conv_id)
+        except Exception as lock_err:
+            logger.warning(f"Failed to fetch Redis lock for conversation {conv_id}: {lock_err}")
+            redis_lock = None
+
+        if redis_lock:
+            bot_id = redis_lock.get("user_id")
+            doc["bot_id"] = bot_id
+            doc["locker_name"] = redis_lock.get("user_name") or None
+        else:
+            bot_id = doc.get("bot_id")
+            if bot_id == "ai":
+                doc["locker_name"] = "AI"
+            elif bot_id:
+                doc["locker_name"] = await get_user_name_by_id(db_session, bot_id)
+            else:
+                doc["locker_name"] = None
+
+        # Check if there is a pending handoff request
+        try:
+            pending_req = await db.internal_conversations.find_one({
+                "messages": {
+                    "$elemMatch": {
+                        "handoff_request.conversation_id": conv_id,
+                        "handoff_request.status": "pending"
+                    }
+                }
+            })
+            doc["handoff_pending"] = pending_req is not None
+        except Exception:
+            doc["handoff_pending"] = False
+
+        # Check permissions for viewing handled chats
+        if bot_id and bot_id != "ai" and bot_id != current_user["user_id"]:
+            has_view_handled = (
+                current_user.get("role", "").upper() == "OWNER" or
+                "chat:view_handled" in current_user.get("permissions", [])
+            )
+            if not has_view_handled:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You are not authorized to view this chat. It is currently handled by another user."
+                )
+            
         return {"success": True, "chat": doc}
     except HTTPException as he:
         raise he
@@ -177,7 +342,7 @@ async def send_chat_reply_endpoint(
                 detail="You are not authorized to reply to this chat. It is either assigned to another user or you lack OWNER permissions for unassigned chats."
             )
 
-        # 1. Retrieve conversation from MongoDB to get organization_id, bot_name, and chat_id
+        # 1. Retrieve conversation from MongoDB to get organization_id, bot_id, and chat_id
         mongo_db = MongoDBManager.get_db()
         sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
         query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
@@ -190,9 +355,77 @@ async def send_chat_reply_endpoint(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found in MongoDB."
             )
+
+        org_id = conv.get("organization_id")
+        conv_id = str(conv["_id"])
+
+        # Enforce Lock: check Redis first, fallback to MongoDB
+        try:
+            redis_lock = await ChatLockManager.get_lock(org_id, conv_id)
+        except Exception:
+            redis_lock = None
+
+        if redis_lock:
+            bot_id = redis_lock.get("user_id")
+        else:
+            bot_id = conv.get("bot_id")
+
+        allowed_users = conv.get("allowed_users", [])
+        is_allowed = str(current_user["user_id"]) in [str(u) for u in allowed_users] or current_user.get("role", "").upper() == "OWNER"
+        
+        if bot_id and not is_allowed:
+            if bot_id == "ai":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This conversation is locked by AI. Please disable AI auto-reply to send a message."
+                )
+            elif bot_id != current_user["user_id"]:
+                locker_name = await get_user_name_by_id(db_session, bot_id) or "another agent"
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"This conversation is locked by {locker_name}."
+                )
+
+        # Auto-claim lock if unlocked
+        if not bot_id:
+            bot_id = current_user["user_id"]
+            await mongo_db.conversations.update_one(
+                {
+                    "platform": req.platform.lower(),
+                    "user.sender_id": query_id
+                },
+                {
+                    "$set": {
+                        "bot_id": bot_id,
+                        "ai_assigned": False,
+                        "updated_at": datetime.now(timezone.utc)
+                    }
+                }
+            )
+            try:
+                locker_name = await get_user_name_by_id(db_session, bot_id)
+                # Find active socket ID
+                socket_id = manager.find_socket_id(bot_id, req.platform, str(req.sender_id)) or f"fallback-{uuid4()}"
+                await ChatLockManager.acquire_lock(
+                    org_id=org_id,
+                    conversation_id=conv_id,
+                    user_id=bot_id,
+                    socket_id=socket_id,
+                    user_name=locker_name
+                )
+                ws_event = {
+                    "org_id": org_id,
+                    "platform": req.platform.lower(),
+                    "sender_id": req.sender_id,
+                    "type": "chat_lock_update",
+                    "bot_id": bot_id,
+                    "locker_name": locker_name
+                }
+                await manager.broadcast(org_id, ws_event)
+            except Exception as ws_err:
+                logger.error(f"Failed to broadcast auto-claim chat_lock_update: {ws_err}")
             
         org_id = conv.get("organization_id")
-        bot_name = conv.get("bot_name")
         chat_id = conv.get("chat_id")
         
         # 2. Look up the connector in PostgreSQL to get the bot_token
@@ -237,6 +470,8 @@ async def send_chat_reply_endpoint(
                 detail="Connector is missing the bot token configuration."
             )
             
+        bot_name = connector.platform_account_name or "UnknownBot"
+
         # 3. Publish to Kafka 'chat_service' topic
         import importlib
         _chat_service = importlib.import_module("services.chatai-service.chat_service")
@@ -249,7 +484,8 @@ async def send_chat_reply_endpoint(
             chat_id=chat_id,
             sender_id=req.sender_id,
             text=req.text,
-            ig_account_id=connector.platform_account_id if req.platform.lower() == "instagram" else None
+            ig_account_id=connector.platform_account_id if req.platform.lower() == "instagram" else None,
+            assigned_user=current_user["user_id"]
         )
         
         return {"success": True, "message": "Reply event successfully sent to Kafka."}
@@ -284,7 +520,7 @@ async def send_chat_reply_image(
                 detail="You are not authorized to reply to this chat. It is either assigned to another user or you lack OWNER permissions for unassigned chats."
             )
 
-        # 1. Retrieve conversation from MongoDB to get organization_id, bot_name, and chat_id
+        # 1. Retrieve conversation from MongoDB to get organization_id, bot_id, and chat_id
         mongo_db = MongoDBManager.get_db()
         sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
         query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
@@ -297,9 +533,77 @@ async def send_chat_reply_image(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found in MongoDB."
             )
+
+        org_id = conv.get("organization_id")
+        conv_id = str(conv["_id"])
+
+        # Enforce Lock: check Redis first, fallback to MongoDB
+        try:
+            redis_lock = await ChatLockManager.get_lock(org_id, conv_id)
+        except Exception:
+            redis_lock = None
+
+        if redis_lock:
+            bot_id = redis_lock.get("user_id")
+        else:
+            bot_id = conv.get("bot_id")
+
+        allowed_users = conv.get("allowed_users", [])
+        is_allowed = str(current_user["user_id"]) in [str(u) for u in allowed_users] or current_user.get("role", "").upper() == "OWNER"
+        
+        if bot_id and not is_allowed:
+            if bot_id == "ai":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This conversation is locked by AI. Please disable AI auto-reply to send a message."
+                )
+            elif bot_id != current_user["user_id"]:
+                locker_name = await get_user_name_by_id(db_session, bot_id) or "another agent"
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"This conversation is locked by {locker_name}."
+                )
+
+        # Auto-claim lock if unlocked
+        if not bot_id:
+            bot_id = current_user["user_id"]
+            await mongo_db.conversations.update_one(
+                {
+                    "platform": platform.lower(),
+                    "user.sender_id": query_id
+                },
+                {
+                    "$set": {
+                        "bot_id": bot_id,
+                        "ai_assigned": False,
+                        "updated_at": datetime.now(timezone.utc)
+                    }
+                }
+            )
+            try:
+                locker_name = await get_user_name_by_id(db_session, bot_id)
+                # Find active socket ID
+                socket_id = manager.find_socket_id(bot_id, platform, str(sender_id)) or f"fallback-{uuid4()}"
+                await ChatLockManager.acquire_lock(
+                    org_id=org_id,
+                    conversation_id=conv_id,
+                    user_id=bot_id,
+                    socket_id=socket_id,
+                    user_name=locker_name
+                )
+                ws_event = {
+                    "org_id": org_id,
+                    "platform": platform.lower(),
+                    "sender_id": sender_id,
+                    "type": "chat_lock_update",
+                    "bot_id": bot_id,
+                    "locker_name": locker_name
+                }
+                await manager.broadcast(org_id, ws_event)
+            except Exception as ws_err:
+                logger.error(f"Failed to broadcast auto-claim chat_lock_update: {ws_err}")
             
         org_id = conv.get("organization_id")
-        bot_name = conv.get("bot_name")
         chat_id = conv.get("chat_id")
         
         # 2. Look up the connector in PostgreSQL to get the bot_token
@@ -320,6 +624,8 @@ async def send_chat_reply_image(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"No active connector found for platform '{platform}' and organization ID '{org_id}'."
             )
+            
+        bot_name = connector.platform_account_name or "UnknownBot"
             
         # Decrypt token if encrypted
         bot_token = None
@@ -386,7 +692,8 @@ async def send_chat_reply_image(
                 sender_id=sender_id,
                 text="",
                 image_url=image_url,
-                ig_account_id=connector.platform_account_id if platform.lower() == "instagram" else None
+                ig_account_id=connector.platform_account_id if platform.lower() == "instagram" else None,
+                assigned_user=current_user["user_id"]
             )
             
         return {"success": True, "image_urls": uploaded_urls, "image_url": uploaded_urls[0]}
@@ -493,6 +800,7 @@ async def toggle_ai_assigned(
             )
             
         # Update flag
+        bot_id = "ai" if req.ai_assigned else None
         await mongo_db.conversations.update_one(
             {
                 "platform": req.platform.lower(),
@@ -501,26 +809,59 @@ async def toggle_ai_assigned(
             {
                 "$set": {
                     "ai_assigned": req.ai_assigned,
+                    "bot_id": bot_id,
                     "updated_at": datetime.now(timezone.utc)
                 }
             }
         )
         
+        conversation_id = str(conv["_id"])
+        org_id = str(conv.get("organization_id", current_user["organization_id"]))
+        locker_name = "AI" if req.ai_assigned else None
 
-        
-        # Broadcast the status update to WebSocket clients so the frontend state updates in real-time
+        # Handle Redis lock
+        if req.ai_assigned:
+            try:
+                await ChatLockManager.release_lock(org_id, conversation_id)
+            except Exception as lock_err:
+                logger.warning(f"Failed to release Redis lock on toggle-ai: {lock_err}")
+        else:
+            # AI auto-reply turned off, try to lock to the user if they have an active websocket
+            socket_id = manager.find_socket_id(current_user["user_id"], req.platform, str(req.sender_id))
+            if socket_id:
+                try:
+                    # Resolve full name using a new session
+                    async with SessionLocal() as local_session:
+                        locker_name = await get_user_name_by_id(local_session, current_user["user_id"])
+                    await ChatLockManager.acquire_lock(
+                        org_id=org_id,
+                        conversation_id=conversation_id,
+                        user_id=current_user["user_id"],
+                        socket_id=socket_id,
+                        user_name=locker_name
+                    )
+                    # Also update MongoDB bot_id to current_user
+                    bot_id = current_user["user_id"]
+                    await mongo_db.conversations.update_one(
+                        {"_id": conv["_id"]},
+                        {"$set": {"bot_id": bot_id}}
+                    )
+                except Exception as lock_err:
+                    logger.warning(f"Failed to acquire Redis lock on toggle-ai: {lock_err}")
+
+        # Broadcast the lock status update to WebSocket clients
         try:
             ws_event = {
-                "org_id": conv.get("organization_id"),
+                "org_id": org_id,
                 "platform": req.platform.lower(),
                 "sender_id": req.sender_id,
-                "type": "ai_assigned_toggle",
-                "ai_assigned": req.ai_assigned
+                "type": "chat_lock_update",
+                "bot_id": bot_id,
+                "locker_name": locker_name
             }
-            # We broadcast it directly since api_gateway is hosting the WebSocket connections
-            await manager.broadcast(conv.get("organization_id"), ws_event)
+            await manager.broadcast(org_id, ws_event)
         except Exception as ws_err:
-            logger.error(f"Failed to broadcast ai_assigned_toggle: {ws_err}")
+            logger.error(f"Failed to broadcast lock update from toggle-ai: {ws_err}")
             
         return {"success": True, "ai_assigned": req.ai_assigned}
     except HTTPException as he:
@@ -529,6 +870,124 @@ async def toggle_ai_assigned(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to toggle AI assignment: {str(e)}"
+        )
+
+
+@router.post("/lock")
+async def lock_chat(
+    req: LockChatRequest,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(check_permission("chats"))
+):
+    try:
+        mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
+
+        # Verify access rights
+        has_access = await check_chat_access(req.platform, req.sender_id, current_user["user_id"], db_session)
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to access this chat."
+            )
+
+        conv = await mongo_db.conversations.find_one({
+            "platform": req.platform.lower(),
+            "user.sender_id": query_id
+        })
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found."
+            )
+
+        # Access check: non-owners can only lock the conversation to themselves (or unlock if they hold it)
+        role = current_user.get("role", "").upper()
+        current_bot_id = conv.get("bot_id")
+        
+        # If trying to lock to someone else and user is not OWNER
+        if req.bot_id and req.bot_id != "ai" and req.bot_id != current_user["user_id"] and role != "OWNER":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only lock the conversation to yourself."
+            )
+
+        # If chat is currently locked by someone else, and current user is not OWNER
+        if current_bot_id and current_bot_id != "ai" and current_bot_id != current_user["user_id"] and role != "OWNER":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This conversation is locked by another agent."
+            )
+
+        # Synchronize ai_assigned flag based on bot_id
+        ai_assigned = True if req.bot_id == "ai" else False
+
+        # Resolve locker's full name
+        locker_name = None
+        if req.bot_id == "ai":
+            locker_name = "AI"
+        elif req.bot_id:
+            locker_name = await get_user_name_by_id(db_session, req.bot_id)
+
+        # Update MongoDB
+        await mongo_db.conversations.update_one(
+            {
+                "platform": req.platform.lower(),
+                "user.sender_id": query_id
+            },
+            {
+                "$set": {
+                    "bot_id": req.bot_id,
+                    "ai_assigned": ai_assigned,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            }
+        )
+
+        conversation_id = str(conv["_id"])
+        org_id = str(conv.get("organization_id", current_user["organization_id"]))
+
+        # Acquire/release Redis lock
+        if req.bot_id and req.bot_id != "ai":
+            try:
+                socket_id = manager.find_socket_id(req.bot_id, req.platform, str(req.sender_id)) or f"lock-{uuid4()}"
+                await ChatLockManager.acquire_lock(
+                    org_id=org_id,
+                    conversation_id=conversation_id,
+                    user_id=req.bot_id,
+                    socket_id=socket_id,
+                    user_name=locker_name
+                )
+            except Exception as lock_err:
+                logger.warning(f"Failed to acquire Redis lock in lock_chat endpoint: {lock_err}")
+        else:
+            try:
+                await ChatLockManager.release_lock(org_id, conversation_id)
+            except Exception as lock_err:
+                logger.warning(f"Failed to release Redis lock in lock_chat endpoint: {lock_err}")
+
+        # Broadcast the lock status update to WebSocket clients
+        try:
+            ws_event = {
+                "org_id": org_id,
+                "platform": req.platform.lower(),
+                "sender_id": req.sender_id,
+                "type": "chat_lock_update",
+                "bot_id": req.bot_id,
+                "locker_name": locker_name
+            }
+            await manager.broadcast(org_id, ws_event)
+        except Exception as ws_err:
+            logger.error(f"Failed to broadcast chat_lock_update: {ws_err}")
+
+        return {"success": True, "bot_id": req.bot_id, "locker_name": locker_name}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to lock conversation: {str(e)}"
         )
 
 class MarkReadRequest(BaseModel):
@@ -669,6 +1128,122 @@ async def mark_chat_as_read(
             detail=f"Failed to mark chat as read: {str(e)}"
         )
 
+# ================= Handoff Endpoints =================
+
+@router.post("/handoff/request")
+async def request_handoff_endpoint(
+    req: HandoffRequestModel,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(check_permission("chats"))
+):
+    """
+    Request to take over a customer conversation that is currently locked by another team member.
+    Sends a DM to the current handler with accept/decline options.
+    """
+    try:
+        # Find the conversation
+        mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [str(req.sender_id), sender_id_int]} if sender_id_int is not None else str(req.sender_id)
+        conv = await mongo_db.conversations.find_one({
+            "platform": req.platform.lower(),
+            "user.sender_id": query_id
+        })
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found."
+            )
+
+        conversation_id = str(conv["_id"])
+        org_id = str(conv.get("organization_id", current_user["organization_id"]))
+        handler_id = conv.get("bot_id")
+
+        if not handler_id or handler_id == "ai":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This conversation is not currently handled by a team member."
+            )
+
+        if handler_id == current_user["user_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You are already handling this conversation."
+            )
+
+        # Get requester name
+        requester_name = await get_user_name_by_id(db_session, current_user["user_id"]) or "A team member"
+
+        result = await ChatHandoffService.request_handoff(
+            conversation_id=conversation_id,
+            requester_id=current_user["user_id"],
+            requester_name=requester_name,
+            handler_id=handler_id,
+            org_id=org_id
+        )
+
+        return {"success": True, "handoff": result}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create handoff request: {str(e)}"
+        )
+
+@router.post("/handoff/respond")
+async def respond_handoff_endpoint(
+    req: HandoffRespondModel,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(check_permission("chats"))
+):
+    """
+    Accept or decline a handoff request. Only the current handler can respond.
+    """
+    try:
+        org_id = current_user["organization_id"]
+        handler_id = current_user["user_id"]
+        handler_name = await get_user_name_by_id(db_session, handler_id) or "Unknown"
+
+        if req.action == "grant":
+            # Find an active socket for the handler to pass to grant
+            socket_id = f"handoff-{uuid4()}"  # Placeholder socket for grant flow
+            result = await ChatHandoffService.grant_handoff(
+                handoff_id=req.handoff_id,
+                org_id=org_id,
+                handler_id=handler_id,
+                handler_name=handler_name,
+                handler_socket_id=socket_id
+            )
+        elif req.action == "decline":
+            result = await ChatHandoffService.decline_handoff(
+                handoff_id=req.handoff_id,
+                org_id=org_id,
+                handler_id=handler_id
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Action must be 'grant' or 'decline'."
+            )
+
+        if result.get("error"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["error"]
+            )
+
+        return {"success": True, **result}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process handoff response: {str(e)}"
+        )
+
 # ================= WebSocket Support =================
 
 import asyncio
@@ -697,6 +1272,15 @@ class ConnectionManager:
         self.active_chat_sessions: dict[tuple[str, str], str] = {}
         # Mapping from WebSocket -> (platform, sender_id_str, user_id)
         self.websocket_to_chat: dict[WebSocket, tuple[str, str, str]] = {}
+        # Mappings for socket IDs
+        self.websocket_to_socket_id: dict[WebSocket, str] = {}
+
+    def find_socket_id(self, user_id: str, platform: str, sender_id: str) -> Optional[str]:
+        for ws, chat_info in self.websocket_to_chat.items():
+            ws_platform, ws_sender_id, ws_user_id = chat_info
+            if ws_user_id == user_id and ws_platform == platform.lower() and str(ws_sender_id) == str(sender_id):
+                return self.websocket_to_socket_id.get(ws)
+        return None
 
     async def connect(
         self,
@@ -705,7 +1289,8 @@ class ConnectionManager:
         user_id: Optional[str] = None,
         platform: Optional[str] = None,
         sender_id: Optional[Union[int, str]] = None,
-        db_session: AsyncSession = None
+        db_session: AsyncSession = None,
+        socket_id: Optional[str] = None
     ) -> bool:
         try:
             from starlette.websockets import WebSocketState
@@ -714,9 +1299,15 @@ class ConnectionManager:
         except Exception:
             return False
 
+        # Generate a socket ID if not provided
+        if not socket_id:
+            from uuid import uuid4
+            socket_id = f"ws-{uuid4()}"
+
         # Enforce connection restrictions if user_id and chat details are provided
         if user_id and platform and sender_id and db_session:
             sender_id_str = str(sender_id)
+            chat_key = (platform.lower(), sender_id_str)
             # Check DB permission first
             has_access = await check_chat_access(platform, sender_id_str, user_id, db_session)
             if not has_access:
@@ -730,20 +1321,44 @@ class ConnectionManager:
                     pass
                 return False
 
-            # Check for concurrent user-2 connection to same chat
-            chat_key = (platform.lower(), sender_id_str)
-            if chat_key in self.active_chat_sessions:
-                existing_user = self.active_chat_sessions[chat_key]
-                if str(existing_user) != str(user_id):
+            self.websocket_to_socket_id[websocket] = socket_id
+
+            # Re-acquire Redis lock on connect/reconnect if already claimed by this user in MongoDB
+            mongo_db = MongoDBManager.get_db()
+            sender_id_int = int(sender_id_str) if sender_id_str.isdigit() else None
+            query_id = {"$in": [sender_id_str, sender_id_int]} if sender_id_int is not None else sender_id_str
+            conv = await mongo_db.conversations.find_one({
+                "platform": platform.lower(),
+                "user.sender_id": query_id
+            })
+            if conv:
+                conv_id = str(conv["_id"])
+                bot_id = conv.get("bot_id")
+                ai_assigned = conv.get("ai_assigned", False)
+
+                # Sticky re-acquire: if bot_id matches user_id in MongoDB, acquire lock in Redis
+                if bot_id == user_id and not ai_assigned:
+                    locker_name = await get_user_name_by_id(db_session, user_id)
                     try:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Another user is currently connected to this chat."
-                        })
-                        await websocket.close(code=4009)
-                    except Exception:
-                        pass
-                    return False
+                        await ChatLockManager.acquire_lock(
+                            org_id=org_id,
+                            conversation_id=conv_id,
+                            user_id=user_id,
+                            socket_id=socket_id,
+                            user_name=locker_name
+                        )
+                        # Broadcast the lock status update
+                        ws_event = {
+                            "org_id": org_id,
+                            "platform": platform.lower(),
+                            "sender_id": sender_id_str,
+                            "type": "chat_lock_update",
+                            "bot_id": user_id,
+                            "locker_name": locker_name
+                        }
+                        await self.broadcast(org_id, ws_event)
+                    except Exception as lock_err:
+                        logger.error(f"Failed to acquire Redis lock on connect: {lock_err}")
 
             self.active_chat_sessions[chat_key] = user_id
             self.websocket_to_chat[websocket] = (platform.lower(), sender_id_str, user_id)
@@ -754,18 +1369,51 @@ class ConnectionManager:
         logger.info(f"[WebSocket] Connected client for org: {org_id}. Total active: {len(self.active_connections[org_id])}")
         return True
 
-    def disconnect(self, org_id: str, websocket: WebSocket):
+    async def disconnect(self, org_id: str, websocket: WebSocket):
         if org_id in self.active_connections:
             if websocket in self.active_connections[org_id]:
                 self.active_connections[org_id].remove(websocket)
             if not self.active_connections[org_id]:
                 del self.active_connections[org_id]
 
+        socket_id = self.websocket_to_socket_id.pop(websocket, None)
+
         if websocket in self.websocket_to_chat:
             platform, sender_id_str, user_id = self.websocket_to_chat.pop(websocket)
             chat_key = (platform, sender_id_str)
             if self.active_chat_sessions.get(chat_key) == user_id:
                 self.active_chat_sessions.pop(chat_key, None)
+
+            # Auto-release Redis lock (keeps MongoDB claim sticky for re-acquiring on reconnect)
+            if socket_id:
+                try:
+                    released_locks = await ChatLockManager.release_all_locks_for_socket(socket_id)
+                    mongo_db = MongoDBManager.get_db()
+                    for lock in released_locks:
+                        conv_id = lock["conversation_id"]
+                        # Find the conversation to get platform and sender_id
+                        from bson import ObjectId
+                        try:
+                            conv = await mongo_db.conversations.find_one({"_id": ObjectId(conv_id)})
+                        except Exception:
+                            conv = None
+
+                        if conv:
+                            actual_platform = conv["platform"]
+                            actual_sender_id = conv["user"]["sender_id"]
+
+                            # Broadcast the lock release in real-time to other clients
+                            ws_event = {
+                                "org_id": org_id,
+                                "platform": actual_platform,
+                                "sender_id": str(actual_sender_id),
+                                "type": "chat_lock_update",
+                                "bot_id": None,
+                                "locker_name": None
+                            }
+                            await self.broadcast(org_id, ws_event)
+                except Exception as ws_err:
+                    logger.error(f"Failed to auto-release Redis locks on disconnect: {ws_err}")
 
         logger.info(f"[WebSocket] Disconnected client.")
 
@@ -815,13 +1463,15 @@ async def websocket_endpoint(
             return
 
         try:
+            socket_id = f"ws-{uuid4()}"
             success = await manager.connect(
                 org_id=org_id,
                 websocket=websocket,
                 user_id=user_id,
                 platform=platform,
                 sender_id=sender_id,
-                db_session=db_session
+                db_session=db_session,
+                socket_id=socket_id
             )
             if not success:
                 return
@@ -841,10 +1491,10 @@ async def websocket_endpoint(
             # Maintain connection alive, listen for disconnects
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(org_id, websocket)
+        await manager.disconnect(org_id, websocket)
     except Exception as e:
         logger.error(f"[WebSocket] Connection error for org {org_id}: {e}")
-        manager.disconnect(org_id, websocket)
+        await manager.disconnect(org_id, websocket)
 
 _ws_consumer_task: Optional[asyncio.Task] = None
 

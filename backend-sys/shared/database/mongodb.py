@@ -51,6 +51,19 @@ async def init_mongodb_db():
             [("organization_id", 1)]
         )
         logger.info(f"Successfully created index '{org_index_name}' on 'conversations' collection.")
+
+        # Create indexes for 'internal_conversations'
+        logger.info("Creating indexes on 'internal_conversations' collection...")
+        internal_org_type_idx = await db.internal_conversations.create_index(
+            [("organization_id", 1), ("type", 1)]
+        )
+        logger.info(f"Successfully created index '{internal_org_type_idx}' on 'internal_conversations'.")
+
+        internal_user_ids_idx = await db.internal_conversations.create_index(
+            [("user_ids", 1)]
+        )
+        logger.info(f"Successfully created index '{internal_user_ids_idx}' on 'internal_conversations'.")
     except Exception as e:
         logger.error(f"Failed to initialize MongoDB indexes: {str(e)}")
         raise e
+
