@@ -8,6 +8,14 @@ from services.api_gateway.routers.teams.permissions import check_permission
 router = APIRouter(prefix="/api/products")
 
 def proto_to_product_dict(p):
+    import json
+    meta_dict = None
+    if p.metadata_json:
+        try:
+            meta_dict = json.loads(p.metadata_json)
+        except Exception:
+            pass
+
     return {
         "id": p.id,
         "organization_id": p.organization_id,
@@ -20,7 +28,8 @@ def proto_to_product_dict(p):
         "image": p.image if p.image else None,
         "is_active": p.is_active,
         "created_at": p.created_at,
-        "updated_at": p.updated_at
+        "updated_at": p.updated_at,
+        "metadata": meta_dict
     }
 
 @router.get("")

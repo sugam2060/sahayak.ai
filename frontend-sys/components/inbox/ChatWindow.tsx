@@ -70,8 +70,8 @@ const renderMessageText = (text: string) => {
 const parseDate = (dateStr: string) => {
   if (!dateStr) return new Date();
   const timePart = dateStr.split('T')[1];
-  const hasTimezone = dateStr.endsWith('Z') || 
-                      (timePart && (timePart.includes('+') || timePart.includes('-')));
+  const hasTimezone = dateStr.endsWith('Z') ||
+    (timePart && (timePart.includes('+') || timePart.includes('-')));
   return new Date(hasTimezone ? dateStr : `${dateStr}Z`);
 };
 
@@ -80,7 +80,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
     selectedChat?.platform,
     selectedChat?.senderId
   );
-  
+
   const { user } = useAuthStore();
   const sendReplyMutation = useSendReply();
   const toggleAIMutation = useToggleAI();
@@ -126,7 +126,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
       const formData = new FormData();
       formData.append('sender_id', selectedChat.senderId.toString());
       formData.append('platform', selectedChat.platform);
-      
+
       for (let i = 0; i < files.length; i++) {
         formData.append('image_files', files[i]);
       }
@@ -167,7 +167,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
     try {
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      
+
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
         setCardLoadingProgress(`Preparing card ${i + 1} of ${products.length}: ${product.name}`);
@@ -239,7 +239,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  
+
   const {
     register,
     handleSubmit,
@@ -291,7 +291,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         <p className="text-xs text-slate-400 max-w-xs mt-1">
           Select a customer conversation from the list to view history and send replies.
         </p>
-        <button 
+        <button
           onClick={onMenuClick}
           className="mt-6 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold cursor-pointer md:hidden flex items-center gap-2 shadow-sm transition-all"
         >
@@ -311,11 +311,11 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
   const orgInitials = user?.organization_name
     ? user.organization_name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
     : 'YO';
 
   return (
@@ -324,14 +324,14 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
       <div className="h-16 flex items-center justify-between px-6 border-b border-indigo-100/50 bg-white/80 backdrop-blur-md z-10">
         <div className="flex items-center gap-3">
           {/* Hamburger menu button on mobile */}
-          <button 
+          <button
             onClick={onMenuClick}
             className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg md:hidden cursor-pointer"
             aria-label="Open Sidebar"
           >
             <Menu className="w-5 h-5" />
           </button>
-          
+
           {chat?.user.profile_pic ? (
             <img
               src={chat.user.profile_pic}
@@ -351,7 +351,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           >
             {initials}
           </div>
-          <div 
+          <div
             onClick={() => setIsContextOpen(true)}
             className="cursor-pointer select-none group/hdr"
           >
@@ -372,7 +372,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3 relative">
           {chat && (
             <button
@@ -389,8 +389,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
             </button>
           )}
 
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={() => setShowMenu(!showMenu)}
             className={`p-2 rounded-lg transition-colors cursor-pointer ${showMenu ? 'bg-slate-100 text-slate-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
@@ -399,22 +399,22 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
           {showMenu && (
             <div className="absolute right-0 top-10 bg-white border border-indigo-50 rounded-xl p-1.5 shadow-xl flex flex-col gap-0.5 z-20 min-w-[120px] animate-in fade-in slide-in-from-top-1 duration-150">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   console.log("Assign clicked");
                   setShowMenu(false);
-                }} 
+                }}
                 className="flex items-center w-full px-3 py-2 text-left hover:bg-indigo-50/50 rounded-lg text-slate-600 text-xs font-semibold cursor-pointer"
               >
                 <span>Assign Ticket</span>
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   console.log("Resolve clicked");
                   setShowMenu(false);
-                }} 
+                }}
                 className="flex items-center w-full px-3 py-2 text-left hover:bg-teal-50/50 rounded-lg text-teal-600 text-xs font-semibold cursor-pointer"
               >
                 <span>Resolve Ticket</span>
@@ -450,7 +450,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           const msgTime = parseDate(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
           return (
-            <div 
+            <div
               key={msg.message_id}
               className={`flex gap-3 max-w-[75%] ${isInbound ? '' : 'flex-row-reverse ml-auto'}`}
             >
@@ -476,8 +476,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
               </div>
               <div className={`space-y-1 ${isInbound ? '' : 'items-end flex flex-col'}`}>
                 <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed relative
-                  ${isInbound 
-                    ? 'bg-white/80 backdrop-blur-md border border-indigo-50 rounded-tl-none text-slate-700' 
+                  ${isInbound
+                    ? 'bg-white/80 backdrop-blur-md border border-indigo-50 rounded-tl-none text-slate-700'
                     : 'bg-indigo-50 border border-indigo-200 rounded-tr-none text-slate-800'}`}
                 >
                   {msg.image_url && (
@@ -486,22 +486,22 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                         const url = msg.image_url.toLowerCase();
                         const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.ogg'];
                         const isVideo = videoExtensions.some(ext => url.endsWith(ext) || url.includes(ext + '?') || url.includes(ext + '#')) || url.includes('/video/upload/') || url.includes('/video/');
-                        
+
                         if (isVideo) {
                           return (
-                            <video 
-                              src={msg.image_url} 
-                              controls 
-                              preload="metadata" 
+                            <video
+                              src={msg.image_url}
+                              controls
+                              preload="metadata"
                               className="w-full h-auto max-h-[300px] rounded"
                             />
                           );
                         }
                         return (
-                          <img 
-                            src={msg.image_url} 
-                            alt="Attached media" 
-                            className="w-full h-auto object-contain max-h-[300px]" 
+                          <img
+                            src={msg.image_url}
+                            alt="Attached media"
+                            className="w-full h-auto object-contain max-h-[300px]"
                           />
                         );
                       })()}
@@ -539,45 +539,45 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         {/* Actions Popup Menu */}
         {showActions && (
           <div className="absolute left-6 bottom-20 bg-white border border-indigo-50 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 z-20 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 setShowActions(false);
                 setIsCreateTicketOpen(true);
-              }} 
+              }}
               className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
             >
               <Ticket className="w-4 h-4 text-indigo-500" />
               <span>Create Ticket</span>
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 setShowActions(false);
                 fileInputRef.current?.click();
-              }} 
+              }}
               className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
             >
               <ImageIcon className="w-4 h-4 text-pink-500" />
               <span>Upload Image</span>
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 setShowActions(false);
                 setIsProductSelectorOpen(true);
-              }} 
+              }}
               className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
             >
               <Package className="w-4 h-4 text-amber-500" />
               <span>Add Product</span>
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 setShowActions(false);
                 setIsCreateOrderOpen(true);
-              }} 
+              }}
               className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/50 rounded-xl text-slate-600 text-xs font-semibold cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4 text-teal-500" />
@@ -589,7 +589,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         {/* Emoji Picker Popup */}
         {showEmojiPicker && (
           <div className="absolute right-6 bottom-20 z-30 shadow-2xl rounded-2xl border border-slate-200 overflow-hidden">
-            <EmojiPicker 
+            <EmojiPicker
               onEmojiClick={(emojiData) => {
                 const currentText = getValues('text') || '';
                 setValue('text', currentText + emojiData.emoji);
@@ -603,8 +603,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
         <div className="flex items-center gap-3">
           {/* Add Actions Button */}
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={() => setShowActions(!showActions)}
             className={`flex-shrink-0 h-[46px] w-[46px] rounded-xl flex items-center justify-center border transition-all cursor-pointer
               ${showActions ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
@@ -614,7 +614,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
           {/* Text Area Input */}
           <div className="flex-1 relative flex items-center">
-            <textarea 
+            <textarea
               placeholder={`Reply to ${chat?.user.sender_name || 'customer'}...`}
               {...register('text')}
               onKeyDown={handleKeyDown}
@@ -627,8 +627,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
               <p className="absolute left-0 -top-6 text-[10px] text-rose-500 px-2">{errors.text.message}</p>
             )}
             <div className="absolute right-3 flex items-center gap-1.5">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 className={`p-1 rounded text-slate-400 transition-colors cursor-pointer hover:text-indigo-500
                   ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : ''}`}
@@ -642,8 +642,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           </div>
 
           {/* Send Button */}
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={sendReplyMutation.isPending}
             className="h-[46px] w-[46px] flex-shrink-0 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
@@ -663,34 +663,34 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
       </form>
 
       {/* Context Panel Dialog */}
-      <ContextPanel 
-        selectedChat={selectedChat} 
-        open={isContextOpen} 
-        onOpenChange={setIsContextOpen} 
+      <ContextPanel
+        selectedChat={selectedChat}
+        open={isContextOpen}
+        onOpenChange={setIsContextOpen}
       />
 
       {/* Product Selector Dialog Modal */}
-      <ProductShareModal 
+      <ProductShareModal
         key={isProductSelectorOpen ? 'product-selector-open' : 'product-selector-closed'}
-        open={isProductSelectorOpen} 
-        onOpenChange={setIsProductSelectorOpen} 
-        onSelect={handleSelectProduct} 
+        open={isProductSelectorOpen}
+        onOpenChange={setIsProductSelectorOpen}
+        onSelect={handleSelectProduct}
       />
 
       {/* Create Order Dialog Modal */}
-      <CreateOrderModal 
+      <CreateOrderModal
         key={isCreateOrderOpen ? 'create-order-open' : 'create-order-closed'}
-        open={isCreateOrderOpen} 
-        onOpenChange={setIsCreateOrderOpen} 
-        selectedChat={selectedChat} 
+        open={isCreateOrderOpen}
+        onOpenChange={setIsCreateOrderOpen}
+        selectedChat={selectedChat}
         customerName={chat?.user?.sender_name}
       />
 
       {/* Create Ticket Dialog Modal */}
-      <CreateTicketModal 
+      <CreateTicketModal
         key={isCreateTicketOpen ? 'create-ticket-open' : 'create-ticket-closed'}
-        open={isCreateTicketOpen} 
-        onOpenChange={setIsCreateTicketOpen} 
+        open={isCreateTicketOpen}
+        onOpenChange={setIsCreateTicketOpen}
         selectedChat={selectedChat}
         customerName={data?.chat?.user?.sender_name}
       />
@@ -698,17 +698,17 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
       {/* Hidden Card Template for SVG-to-PNG conversion */}
       {selectedProductForCard && (
         <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
-          <div 
-            ref={cardRef} 
+          <div
+            ref={cardRef}
             style={{ width: '800px', height: '1100px' }}
             className="relative rounded-3xl overflow-hidden bg-white border border-slate-100 flex flex-col font-sans"
           >
             {/* Top Product Image (Large Window) */}
             <div className="w-full h-[750px] bg-slate-50 relative overflow-hidden flex items-center justify-center border-b border-slate-100">
               {selectedProductForCard.image ? (
-                <img 
-                  src={selectedProductForCard.image} 
-                  alt={selectedProductForCard.name} 
+                <img
+                  src={selectedProductForCard.image}
+                  alt={selectedProductForCard.name}
                   className="w-full h-full object-cover"
                   crossOrigin="anonymous"
                 />
@@ -727,7 +727,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                   {selectedProductForCard.description || 'No description provided.'}
                 </p>
               </div>
-              
+
               <div className="flex items-center justify-between mt-auto">
                 <span className="text-4xl font-black text-indigo-600">
                   {new Intl.NumberFormat('en-US', {
@@ -758,13 +758,13 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
           </div>
         </div>
       )}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleImageUpload} 
-        multiple 
-        accept="image/*" 
-        style={{ display: 'none' }} 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImageUpload}
+        multiple
+        accept="image/*"
+        style={{ display: 'none' }}
       />
     </div>
   );

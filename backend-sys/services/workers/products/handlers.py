@@ -27,6 +27,14 @@ cloudinary.config(
 )
 
 def to_product_info(product: Product) -> service_pb2.ProductInfo:
+    import json
+    metadata_str = ""
+    if product.metadata_json:
+        try:
+            metadata_str = json.dumps(product.metadata_json)
+        except Exception:
+            pass
+            
     return service_pb2.ProductInfo(
         id=str(product.id),
         organization_id=str(product.organization_id),
@@ -39,7 +47,8 @@ def to_product_info(product: Product) -> service_pb2.ProductInfo:
         image=product.image or "",
         is_active=product.is_active,
         created_at=product.created_at.isoformat() if product.created_at else "",
-        updated_at=product.updated_at.isoformat() if product.updated_at else ""
+        updated_at=product.updated_at.isoformat() if product.updated_at else "",
+        metadata_json=metadata_str
     )
 
 from shared.utils import upload_cloudinary_image_bytes, delete_cloudinary_image_task
@@ -64,6 +73,14 @@ class ProductService(service_pb2_grpc.ProductServiceServicer):
                     request.organization_name
                 )
 
+            import json
+            meta_json = None
+            if request.metadata_json:
+                try:
+                    meta_json = json.loads(request.metadata_json)
+                except Exception:
+                    pass
+
             async with SessionLocal() as db:
                 new_product = Product(
                     organization_id=org_id,
@@ -74,7 +91,8 @@ class ProductService(service_pb2_grpc.ProductServiceServicer):
                     stock=request.stock,
                     sku=request.sku if request.sku else None,
                     image=image_url,
-                    is_active=request.is_active
+                    is_active=request.is_active,
+                    metadata_json=meta_json
                 )
                 db.add(new_product)
                 await db.commit()
@@ -95,11 +113,13 @@ class ProductService(service_pb2_grpc.ProductServiceServicer):
             filters = [Product.organization_id == org_id]
 
             if request.search:
+                from sqlalchemy import cast, String
                 filters.append(
                     or_(
                         Product.name.ilike(f"%{request.search}%"),
                         Product.description.ilike(f"%{request.search}%"),
-                        Product.sku.ilike(f"%{request.search}%")
+                        Product.sku.ilike(f"%{request.search}%"),
+                        cast(Product.metadata_json, String).ilike(f"%{request.search}%")
                     )
                 )
             if request.sku:
@@ -221,6 +241,9 @@ class ProductService(service_pb2_grpc.ProductServiceServicer):
                     product.sku = request.sku if request.sku != "" else None
                 if request.has_is_active:
                     product.is_active = request.is_active
+                if request.has_metadata_json:
+                    import json
+                    product.metadata_json = json.loads(request.metadata_json) if request.metadata_json else None
 
                 await db.commit()
 

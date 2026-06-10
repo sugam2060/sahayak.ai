@@ -21,6 +21,11 @@ const formSchema = z.object({
   sku: z.string().max(100).optional().or(z.literal('')),
   image: z.string().max(255).optional().or(z.literal('')),
   is_active: z.boolean().default(true),
+  brand: z.string().optional(),
+  color: z.string().optional(),
+  model: z.string().optional(),
+  category: z.string().optional(),
+  keywords: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof formSchema>;
@@ -53,6 +58,11 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
       sku: '',
       image: '',
       is_active: true,
+      brand: '',
+      color: '',
+      model: '',
+      category: '',
+      keywords: '',
     },
   });
 
@@ -67,6 +77,11 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
         sku: product.sku || '',
         image: product.image || '',
         is_active: product.is_active,
+        brand: product.metadata?.brand || '',
+        color: product.metadata?.color || '',
+        model: product.metadata?.model || '',
+        category: product.metadata?.category || '',
+        keywords: product.metadata?.keywords?.join(', ') || '',
       });
     } else {
       reset({
@@ -78,6 +93,11 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
         sku: '',
         image: '',
         is_active: true,
+        brand: '',
+        color: '',
+        model: '',
+        category: '',
+        keywords: '',
       });
     }
   }, [product, reset, open]);
@@ -98,11 +118,19 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
     formData.append('sku', data.sku || '');
     formData.append('is_active', data.is_active ? 'true' : 'false');
 
+    const metadata = {
+      brand: data.brand || undefined,
+      color: data.color || undefined,
+      model: data.model || undefined,
+      category: data.category || undefined,
+      keywords: data.keywords ? data.keywords.split(',').map(k => k.trim()).filter(Boolean) : undefined,
+    };
+    formData.append('metadata_json', JSON.stringify(metadata));
+
     if (selectedFile) {
       formData.append('image_file', selectedFile);
     }
 
-    // If we have an existing product and the image has been cleared (or marked to be cleared)
     if (product && data.image === '') {
       formData.append('clear_image', 'true');
     } else {
@@ -115,7 +143,7 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] bg-white border border-indigo-50 shadow-2xl rounded-2xl p-6">
+      <DialogContent className="sm:max-w-[520px] bg-white border border-indigo-50 shadow-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base font-bold text-slate-800">
             {product ? 'Edit Product' : 'Add New Product'}
@@ -143,7 +171,7 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
             <textarea 
               placeholder="Provide a brief description of the product" 
               {...register('description')}
-              rows={3}
+              rows={2}
               className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl p-3 text-xs focus:outline-none resize-none"
             />
             {errors.description && <p className="text-[10px] text-rose-500">{errors.description.message}</p>}
@@ -218,6 +246,57 @@ export const ProductFormModal = ({ open, onOpenChange, product, onSubmit, isSubm
               ) : null}
             </div>
           </div>
+
+          {/* Product Metadata Section */}
+          <div className="border-t border-slate-100 pt-3 space-y-3">
+            <h5 className="text-xs font-bold text-slate-700">Product Metadata</h5>
+            
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Brand</label>
+                <Input 
+                  placeholder="e.g. Logitech" 
+                  {...register('brand')}
+                  className="bg-slate-50 border-slate-200 focus:border-indigo-500 rounded-xl text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Model</label>
+                <Input 
+                  placeholder="e.g. G733" 
+                  {...register('model')}
+                  className="bg-slate-50 border-slate-200 focus:border-indigo-500 rounded-xl text-xs h-9"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Color</label>
+                <Input 
+                  placeholder="e.g. Black" 
+                  {...register('color')}
+                  className="bg-slate-50 border-slate-200 focus:border-indigo-500 rounded-xl text-xs h-9"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Category</label>
+              <Input 
+                placeholder="e.g. Gaming Headset" 
+                {...register('category')}
+                className="bg-slate-50 border-slate-200 focus:border-indigo-500 rounded-xl text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Keywords (comma separated)</label>
+              <Input 
+                placeholder="e.g. headphone, headset, wireless" 
+                {...register('keywords')}
+                className="bg-slate-50 border-slate-200 focus:border-indigo-500 rounded-xl text-xs h-9"
+              />
+            </div>
+          </div>
+
 
           {/* Active status */}
           <div className="flex items-center gap-2 pt-2 select-none">

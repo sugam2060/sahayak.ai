@@ -34,3 +34,9 @@ class AgentState(TypedDict):
     
     # Optional: extra context like ig_account_id
     extra: Optional[dict]
+
+    # Persistent rolling conversation summary
+    previous_summary: Optional[str]
+
+    # Generated image URLs for product cards
+    image_urls: Optional[list[str]]

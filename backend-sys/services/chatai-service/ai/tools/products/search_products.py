@@ -17,11 +17,11 @@ async def search_products(
     query: str = "",
     limit: int = 10
 ) -> str:
-    """Search for products in the catalog. Use when a customer asks about available products.
+    """Search for products in the catalog. Use when a customer asks about available products or wants to buy items.
     
     Args:
         organization_id: The organization's UUID (injected from state).
-        query: Search term to filter products by name, description, or SKU. Leave empty to list all.
+        query: Search term to filter products by name, description, SKU, or metadata fields (e.g. brand, category, keywords). Leave empty to list all.
         limit: Maximum number of products to return (default 10).
     """
     try:
@@ -35,26 +35,23 @@ async def search_products(
             is_active=True  # Only show active products to customers
         )
         
-        response = await product_stub.GetProducts(request)
+        resp = await product_stub.GetProducts(request)
         
-        if response.success:
-            if not response.products:
-                return f"No products found matching '{query}'." if query else "No products available."
+        if not resp.success or not resp.products:
+            return f"No products found matching '{query}'." if query else "No products available."
             
-            product_lines = []
-            for p in response.products:
-                stock_status = f"In Stock ({p.stock})" if p.stock > 0 else "Out of Stock"
-                product_lines.append(
-                    f"- {p.name} (ID: {p.id})\n"
-                    f"  Price: {p.price} {p.currency} | {stock_status}\n"
-                    f"  {p.description[:100] if p.description else 'No description'}"
-                )
-            
-            result = f"Found {len(response.products)} products:\n\n"
-            result += "\n\n".join(product_lines)
-            return result
-        else:
-            return "Failed to search products."
+        product_lines = []
+        for p in resp.products[:limit]:
+            stock_status = f"In Stock ({p.stock})" if p.stock > 0 else "Out of Stock"
+            product_lines.append(
+                f"- {p.name} (ID: {p.id})\n"
+                f"  Price: {p.price} {p.currency} | {stock_status}\n"
+                f"  {p.description[:100] if p.description else 'No description'}"
+            )
+        
+        result = f"Found {len(resp.products)} products:\n\n"
+        result += "\n\n".join(product_lines)
+        return result
     except Exception as e:
         logger.error(f"Error searching products: {e}", exc_info=True)
         return f"Error searching products: {str(e)}"

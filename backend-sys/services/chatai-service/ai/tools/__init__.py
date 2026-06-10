@@ -11,6 +11,7 @@ from .orders.cancel_order import cancel_order
 from .products.search_products import search_products
 from .products.get_product_detail import get_product_detail
 from .products.check_stock import check_stock
+from .products.generate_product_card import generate_product_card
 
 from .ticket.create_ticket import create_support_ticket
 from .ticket.get_ticket import get_ticket_detail
@@ -41,6 +42,7 @@ def get_all_tools() -> list:
         search_products,
         get_product_detail,
         check_stock,
+        generate_product_card,
         # Tickets
         create_support_ticket,
         get_ticket_detail,

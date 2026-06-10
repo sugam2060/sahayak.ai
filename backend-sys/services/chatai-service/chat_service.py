@@ -31,6 +31,25 @@ async def route_inbound_message(
         **extra_fields
     )
 
+import re
+
+def remove_markdown(text: str) -> str:
+    """Strip markdown formatting (headers, bold, italics, code blocks, links) for plain-text platforms."""
+    if not text:
+        return text
+    # Remove headers
+    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+    # Remove bold/italic (stars and underscores)
+    text = re.sub(r'\*+\s*(.*?)\s*\*+', r'\1', text)
+    text = re.sub(r'_+\s*(.*?)\s*_+', r'\1', text)
+    # Remove code blocks
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    # Remove inline code
+    text = re.sub(r'`(.*?)`', r'\1', text)
+    # Remove links [text](url) -> text
+    text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
+    return text.strip()
+
 async def route_outbound_reply(
     org_id: str,
     bot_name: str,

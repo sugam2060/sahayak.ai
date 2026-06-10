@@ -140,6 +140,7 @@ message ProductInfo {
   bool is_active = 10;
   string created_at = 11;
   string updated_at = 12;
+  string metadata_json = 13;
 }
 
 message CreateProductRequest {
@@ -155,6 +156,7 @@ message CreateProductRequest {
   bytes image_file_bytes = 10;
   string image_file_name = 11;
   string image_file_content_type = 12;
+  string metadata_json = 13;
 }
 
 message CreateProductResponse {
@@ -213,6 +215,8 @@ message UpdateProductRequest {
   bytes image_file_bytes = 19;
   string image_file_name = 20;
   string image_file_content_type = 21;
+  bool has_metadata_json = 22;
+  string metadata_json = 23;
 }
 
 message UpdateProductResponse {

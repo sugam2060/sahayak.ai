@@ -3,14 +3,13 @@ Main entry point for the AI agent.
 
 Orchestrates:
 1. Fetching organization AI config (system prompt, flags)
-2. Loading conversation history from MongoDB
-3. Building tools and the LangGraph ReAct agent
-4. Running the agent and extracting the response
-5. Triggering memory compaction (10:5 strategy)
+2. Syncing human/recent messages from MongoDB conversation history to checkpointer
+3. Running the compiled LangGraph checkpointer state graph
+4. Extracting final response and image URLs
 """
 import logging
-from typing import Optional
-from langchain_core.messages import HumanMessage
+from typing import Optional, Union, Dict, Any
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from shared.database.mongodb import MongoDBManager
 from shared.database.engine import SessionLocal
@@ -18,13 +17,7 @@ from shared.database.schema.organization_config_ai import OrganizationConfigAI
 from sqlalchemy import select
 from uuid import UUID
 
-from .llm import get_llm, get_summary_llm
-from .memory import (
-    load_conversation_memory,
-    maybe_summarize_and_compact,
-    build_system_message,
-    extract_bot_name,
-)
+from .llm import LLMProvider
 from .graph import build_agent_graph
 from .tools import get_all_tools
 
@@ -34,8 +27,6 @@ logger = logging.getLogger("chatai_service.ai.agent")
 async def _fetch_ai_config(org_id: str) -> dict:
     """
     Fetch the organization's AI configuration from PostgreSQL.
-    
-    Returns a dict with: ai_enabled, auto_order_enabled, system_prompt, knowledge_base
     """
     try:
         async with SessionLocal() as db:
@@ -81,27 +72,12 @@ async def run_agent(
     image_url: Optional[str] = None,
     organization_name: str = "",
     **kwargs
-) -> Optional[str]:
+) -> Optional[dict]:
     """
-    Run the AI agent for an inbound customer message.
-    
-    This is the main entry point called from platform handlers after
-    saving the inbound message to MongoDB.
-    
-    Args:
-        org_id: Organization UUID string
-        platform: Platform name (telegram, instagram)
-        sender_id: Customer's platform-specific sender ID
-        chat_id: Platform chat/conversation ID
-        bot_name: Name of the bot
-        bot_token: Bot authentication token
-        inbound_text: The customer's message text
-        image_url: Optional image URL from the message
-        organization_name: Organization name for context
-        **kwargs: Extra fields (e.g., ig_account_id)
+    Run the AI agent using LangGraph checkpointing.
     
     Returns:
-        The AI agent's response text, or None if the agent shouldn't respond.
+        dict: {"text": "...", "image_urls": ["..."]} or None
     """
     try:
         # 1. Fetch AI configuration
@@ -111,28 +87,80 @@ async def run_agent(
             logger.debug(f"AI is disabled for org {org_id}. Skipping agent.")
             return None
         
-        # 2. Initialize LLM
-        llm = get_llm()
+        # 2. Get LLM and Tools
+        llm = LLMProvider.get_reasoning_model()
+        tools = get_all_tools()
         
-        # 3. Load conversation history from MongoDB
-        mongo_db = MongoDBManager.get_db()
-        history_messages, previous_summary = await load_conversation_memory(
-            db=mongo_db,
-            platform=platform,
-            sender_id=sender_id
+        # 3. Setup Checkpointer (Synchronous MongoClient for MongoDBSaver)
+        from pymongo import MongoClient
+        from langgraph.checkpoint.mongodb import MongoDBSaver
+        from shared.config import MONGODB_URL, MONGODB_DB_NAME
+        
+        sync_client = MongoClient(MONGODB_URL)
+        saver = MongoDBSaver(
+            client=sync_client,
+            db_name=MONGODB_DB_NAME,
+            checkpoint_collection_name="agent_checkpoints",
+            writes_collection_name="agent_checkpoint_writes"
         )
         
-        # Fetch customer metadata
+        # Compile graph with saver
+        graph = build_agent_graph(tools=tools, llm=llm, checkpointer=saver)
+        
+        # Dynamic Thread ID format: [platform]+[chat_id]+[sender_id]
+        thread_id = f"{platform}+{chat_id}+{sender_id}"
+        config = {"configurable": {"thread_id": thread_id}}
+        
+        # 4. Fetch state snapshot from saver
+        state_snapshot = await graph.aget_state(config)
+        existing_messages = state_snapshot.values.get("messages", []) if state_snapshot.values else []
+        
+        # 5. Fetch human & recent conversation history from MongoDB
+        mongo_db = MongoDBManager.get_db()
         sender_id_int = int(sender_id) if str(sender_id).isdigit() else None
         query_id = {"$in": [sender_id, sender_id_int]} if sender_id_int is not None else sender_id
+        
         conv = await mongo_db.conversations.find_one({
             "platform": platform,
             "user.sender_id": query_id
         })
-        user_info = conv.get("user", {}) if conv else {}
-        customer_name = user_info.get("sender_name") or user_info.get("sender_username") or ""
+        mongo_messages = conv.get("messages", []) if conv else []
         
-        # Fetch customer details from PostgreSQL to inject in system prompt
+        # Find the last AIMessage or HumanMessage in checkpointer
+        last_existing = None
+        for m in reversed(existing_messages):
+            if isinstance(m, (HumanMessage, AIMessage)) and not isinstance(m, SystemMessage):
+                last_existing = m
+                break
+                
+        # Find alignment index in MongoDB messages
+        sync_index = -1
+        if last_existing:
+            for idx, msg in enumerate(mongo_messages):
+                direction = msg.get("direction", "inbound")
+                expected_role = "inbound" if isinstance(last_existing, HumanMessage) else "outbound"
+                msg_content = msg.get("text", "")
+                if msg.get("image_url"):
+                    msg_content = f"{msg_content}\n[Customer sent an image: {msg.get('image_url')}]" if msg_content else f"[Customer sent an image: {msg.get('image_url')}]"
+                if direction == expected_role and msg_content.strip() == last_existing.content.strip():
+                    sync_index = idx
+                    
+        # Extract unsynced human and newer messages
+        messages_to_sync = mongo_messages[sync_index + 1:] if sync_index != -1 else mongo_messages
+        new_langchain_messages = []
+        for msg in messages_to_sync:
+            direction = msg.get("direction", "inbound")
+            text = msg.get("text", "")
+            img_u = msg.get("image_url")
+            content = text
+            if img_u:
+                content = f"{text}\n[Customer sent an image: {img_u}]" if text else f"[Customer sent an image: {img_u}]"
+            if direction == "inbound":
+                new_langchain_messages.append(HumanMessage(content=content))
+            else:
+                new_langchain_messages.append(AIMessage(content=content))
+                
+        # 6. Retrieve stored CRM details
         customer_phone = None
         customer_address = None
         try:
@@ -154,56 +182,12 @@ async def run_agent(
         except Exception as e:
             logger.error(f"Error fetching customer from PostgreSQL: {e}", exc_info=True)
 
-        # Extract bot name from the system prompt if mentioned, and update in conversation
-        extracted_bot_name = extract_bot_name(ai_config["system_prompt"], bot_name)
-        if conv and extracted_bot_name != conv.get("bot_name"):
-            from datetime import datetime, timezone
-            await mongo_db.conversations.update_one({
-                "platform": platform,
-                "user.sender_id": query_id
-            }, {
-                "$set": {
-                    "bot_name": extracted_bot_name,
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            })
-        bot_name = extracted_bot_name
-        
-        # 4. Build system message
-        system_msg = build_system_message(
-            system_prompt=ai_config["system_prompt"],
-            previous_summary=previous_summary,
-            platform=platform,
-            bot_name=bot_name,
-            auto_order_enabled=ai_config["auto_order_enabled"],
-            customer_phone=customer_phone,
-            customer_address=customer_address
-        )
-        
-        # 5. Build the current inbound message
-        content = inbound_text
-        if image_url:
-            content = f"{inbound_text}\n[Customer sent an image: {image_url}]" if inbound_text else f"[Customer sent an image: {image_url}]"
-        
-        current_message = HumanMessage(content=content)
-        
-        # 6. Assemble the full message list: system + history + current
-        # Note: history_messages already exclude the current inbound (it was just saved)
-        # We remove the last message from history if it matches the current inbound
-        # to avoid duplication (since the handler saves before calling us)
-        if history_messages and history_messages[-1].content == current_message.content:
-            history_messages = history_messages[:-1]
-        
-        all_messages = [system_msg] + history_messages + [current_message]
-        
-        # 7. Build tools
-        tools = get_all_tools()
-        
-        # 8. Build and run the agent graph
-        graph = build_agent_graph(tools=tools, llm=llm)
-        
+        user_info = conv.get("user", {}) if conv else {}
+        customer_name = user_info.get("sender_name") or user_info.get("sender_username") or ""
+
+        # Initialize invocation state
         initial_state = {
-            "messages": all_messages,
+            "messages": new_langchain_messages,
             "organization_id": org_id,
             "organization_name": organization_name,
             "platform": platform,
@@ -214,32 +198,26 @@ async def run_agent(
             "system_prompt": ai_config["system_prompt"],
             "auto_order_enabled": ai_config["auto_order_enabled"],
             "customer_name": customer_name,
-            "extra": kwargs,
+            "extra": {
+                "customer_phone": customer_phone,
+                "customer_address": customer_address,
+                **kwargs
+            },
+            "image_urls": [] # Reset image URLs for this run
         }
         
-        result = await graph.ainvoke(initial_state)
+        # Invoke agent graph
+        result = await graph.ainvoke(initial_state, config=config)
         
-        # 9. Extract the final response from the agent
+        # Extract response text and image URLs
         response_text = _extract_final_response(result)
+        image_urls = result.get("image_urls") or []
         
-        if not response_text:
-            logger.warning("Agent produced no response text.")
-            return None
-        
-        # 10. Trigger memory compaction in background (don't block the response)
-        try:
-            summary_llm = get_summary_llm()
-            await maybe_summarize_and_compact(
-                db=mongo_db,
-                platform=platform,
-                sender_id=sender_id,
-                llm=summary_llm
-            )
-        except Exception as e:
-            logger.error(f"Memory compaction failed (non-critical): {e}", exc_info=True)
-        
-        logger.info(f"Agent response for {platform}:{sender_id}: {response_text[:100]}...")
-        return response_text
+        logger.info(f"Agent response for {platform}:{sender_id}: {response_text[:100] if response_text else 'None'}...")
+        return {
+            "text": response_text,
+            "image_urls": image_urls
+        }
         
     except Exception as e:
         logger.error(f"Error running AI agent for {platform}:{sender_id}: {e}", exc_info=True)
@@ -249,19 +227,18 @@ async def run_agent(
 def _extract_final_response(result: dict) -> Optional[str]:
     """
     Extract the final text response from the LangGraph result.
-    The last message should be an AIMessage without tool calls.
     """
     messages = result.get("messages", [])
     if not messages:
         return None
     
-    # Walk backwards to find the last AIMessage without tool calls
     for msg in reversed(messages):
         if hasattr(msg, "tool_calls") and msg.tool_calls:
             continue
         if hasattr(msg, "content") and msg.content:
-            # Skip tool response messages
             if hasattr(msg, "type") and msg.type == "tool":
+                continue
+            if isinstance(msg, SystemMessage):
                 continue
             return msg.content
     
@@ -270,28 +247,22 @@ def _extract_final_response(result: dict) -> Optional[str]:
 
 async def test_agent_run():
     """
-    Test helper function to execute run_agent with default configurations.
+    Test helper function.
     """
-    import sys
-    import os
-    # Ensure correct python path
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from shared.database.mongodb import init_mongodb_db
     
-    from shared.database.mongodb import init_mongodb_db, MongoDBManager
-    
-    # Default test values (can be customized)
     test_org_id = "de851b5f-b375-4942-862a-3a9406a2f1da"
     test_platform = "telegram"
     test_sender_id = "9999"
     test_chat_id = "8888"
     test_bot_name = "TestBot"
     test_bot_token = "mock-token"
-    test_inbound_text = "I want to buy a headset so place the order, my phone no is: 9801234567 and location is Bagbazar"
+    test_inbound_text = "I want to see the product details of a product with ID a77dd5e2-3b76-4460-b40a-76915db88acb"
     
-    print("Initializing MongoDB indexes...")
+    print("Initializing MongoDB...")
     await init_mongodb_db()
     
-    print(f"Running agent for org: {test_org_id}, message: {test_inbound_text!r}...")
+    print(f"Running agent for org: {test_org_id}...")
     try:
         response = await run_agent(
             org_id=test_org_id,
@@ -303,7 +274,7 @@ async def test_agent_run():
             inbound_text=test_inbound_text
         )
         print("=" * 40)
-        print("Agent Response:", response)
+        print("Agent Response Dict:", response)
         print("=" * 40)
     finally:
         await MongoDBManager.close()
@@ -311,3 +282,4 @@ async def test_agent_run():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(test_agent_run())
+

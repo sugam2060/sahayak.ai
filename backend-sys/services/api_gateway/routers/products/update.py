@@ -19,6 +19,7 @@ async def update_product(
     sku: Optional[str] = Form(None),
     is_active: Optional[bool] = Form(None),
     clear_image: Optional[bool] = Form(False),
+    metadata_json: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(check_permission("products"))
 ):
@@ -58,7 +59,9 @@ async def update_product(
             clear_image=clear_image,
             image_file_bytes=image_bytes,
             image_file_name=image_name,
-            image_file_content_type=image_content_type
+            image_file_content_type=image_content_type,
+            has_metadata_json=(metadata_json is not None),
+            metadata_json=metadata_json if metadata_json is not None else ""
         )
 
         res = await request.app.state.product_stub.UpdateProduct(grpc_req)
@@ -68,6 +71,14 @@ async def update_product(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=res.message or "Failed to update product."
             )
+
+        import json
+        meta_dict = None
+        if res.product.metadata_json:
+            try:
+                meta_dict = json.loads(res.product.metadata_json)
+            except Exception:
+                pass
 
         product_dict = {
             "id": res.product.id,
@@ -81,7 +92,8 @@ async def update_product(
             "image": res.product.image if res.product.image else None,
             "is_active": res.product.is_active,
             "created_at": res.product.created_at,
-            "updated_at": res.product.updated_at
+            "updated_at": res.product.updated_at,
+            "metadata": meta_dict
         }
 
         return {"success": True, "product": product_dict}

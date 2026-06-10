@@ -62,6 +62,20 @@ export const ProductTable = ({ products, onEdit, onDelete, isDeleting }: Product
                     <div>
                       <div className="text-slate-800 font-bold hover:text-indigo-600 transition-colors cursor-pointer">{product.name}</div>
                       <div className="text-[10px] text-slate-400 font-medium line-clamp-1 max-w-[200px]">{product.description || 'No description.'}</div>
+                      {product.metadata && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {product.metadata.brand && (
+                            <span className="px-1 py-0.2 rounded bg-slate-50 border border-slate-100 text-[8px] font-bold text-slate-500">
+                              {product.metadata.brand}
+                            </span>
+                          )}
+                          {product.metadata.category && (
+                            <span className="px-1 py-0.2 rounded bg-slate-50 border border-slate-100 text-[8px] font-bold text-slate-500">
+                              {product.metadata.category}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>

@@ -53,8 +53,8 @@ export const Sidebar = () => {
     return true;
   });
 
-  const bottomItems = [
-    { name: 'Help', icon: HelpCircle, href: '#' }
+  const bottomItems: { name: string; icon: React.ElementType; href?: string }[] = [
+    { name: 'Help', icon: HelpCircle },
   ];
 
   return (
@@ -91,12 +91,21 @@ export const Sidebar = () => {
           {bottomItems.map((item) => (
             <Tooltip key={item.name}>
               <TooltipTrigger asChild>
-                <Link
-                  href={item.href}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all group"
-                >
-                  <item.icon size={18} className="group-hover:rotate-12 transition-transform" />
-                </Link>
+                {item.href ? (
+                  <Link
+                    href={item.href}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all group"
+                  >
+                    <item.icon size={18} className="group-hover:rotate-12 transition-transform" />
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-10 h-10 flex items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all group cursor-pointer"
+                  >
+                    <item.icon size={18} className="group-hover:rotate-12 transition-transform" />
+                  </button>
+                )}
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={10} className="font-semibold text-xs">
                 {item.name}

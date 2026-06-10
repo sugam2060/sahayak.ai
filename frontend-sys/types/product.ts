@@ -1,3 +1,11 @@
+export interface ProductMetadata {
+  brand?: string;
+  color?: string;
+  model?: string;
+  category?: string;
+  keywords?: string[];
+}
+
 export interface Product {
   id: string;
   organization_id: string;
@@ -9,6 +17,7 @@ export interface Product {
   sku: string | null;
   image: string | null;
   is_active: boolean;
+  metadata?: ProductMetadata | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +31,7 @@ export interface CreateProductInput {
   sku?: string;
   image?: string;
   is_active?: boolean;
+  metadata?: ProductMetadata;
 }
 
 export type UpdateProductInput = Partial<CreateProductInput>;

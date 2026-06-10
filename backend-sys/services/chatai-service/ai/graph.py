@@ -1,128 +1,214 @@
 """
-LangGraph ReAct agent graph definition.
-
-Implements the classic ReAct loop:
-  START → agent_node → should_continue? → tool_node → agent_node (loop)
-                                        → END (if no tool calls)
+LangGraph ReAct agent graph definition with 2-way routing, tools, synthesizer, and product card generation.
 """
+import io
 import logging
-from langgraph.graph import StateGraph, END
+import re
+import httpx
+from PIL import Image, ImageDraw, ImageFont
+from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage, RemoveMessage, SystemMessage
 
+from shared.proto import service_pb2
+from .grpc_client import WorkersGRPCClient
+from shared.utils import upload_cloudinary_image_bytes
 from .state import AgentState
+from .tools.products.generate_product_card import _draw_pillow_card
 
 logger = logging.getLogger("chatai_service.ai.graph")
 
 
 def _should_continue(state: AgentState) -> str:
     """
-    Conditional edge: checks if the last AI message contains tool calls.
-    If yes → route to 'tools' node. If no → END the graph.
+    Conditional edge: routes from chat node.
+    - If generate_product_card tool call is present -> 'generate_product_card'
+    - If other tool calls are present -> 'tools'
+    - Otherwise -> 'synthesizer'
     """
     messages = state["messages"]
     last_message = messages[-1]
     
-    # If the LLM returned tool calls, continue to tool execution
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        for tc in last_message.tool_calls:
+            if tc["name"] == "generate_product_card":
+                logger.info("[Edge Event] Routing from 'chat' -> 'generate_product_card'")
+                return "generate_product_card"
+        
         tool_names = [tc["name"] for tc in last_message.tool_calls]
-        logger.info(f"[Edge Event] Routing from 'agent' -> 'tools' (requested tools: {', '.join(tool_names)})")
+        logger.info(f"[Edge Event] Routing from 'chat' -> 'tools' (requested tools: {', '.join(tool_names)})")
         return "tools"
     
-    # Otherwise, we're done — the agent has produced a final response
-    logger.info("[Edge Event] Routing from 'agent' -> END")
-    return END
+    logger.info("[Edge Event] Routing from 'chat' -> 'synthesizer'")
+    return "synthesizer"
 
 
-def build_agent_graph(tools: list, llm):
+def build_agent_graph(tools: list, llm, checkpointer=None):
     """
-    Build and compile a LangGraph StateGraph implementing the ReAct pattern.
+    Build and compile the LangGraph StateGraph.
     
-    Args:
-        tools: List of LangChain tool objects to bind to the LLM.
-        llm: The LLM instance (ChatNVIDIA) to use for reasoning.
-    
-    Returns:
-        A compiled LangGraph StateGraph ready for invocation.
+    Flow:
+    START -> chat
+    chat -> tools -> chat (Standard tool loop)
+    chat -> generate_product_card -> END
+    chat -> synthesizer -> END
     """
-    # Bind tools to the LLM so it can generate tool_calls
     llm_with_tools = llm.bind_tools(tools)
     
-    async def agent_node(state: AgentState) -> dict:
+    async def chat_node(state: AgentState) -> dict:
         """
-        The reasoning node: calls the LLM with the current message history.
-        The LLM will either produce a text response or tool call(s).
+        Decision maker node: invokes LLM with message history.
+        Before calling the LLM, we rebuild the SystemMessage with CRM context and summary,
+        ensuring it is updated each turn.
         """
         messages = state["messages"]
-        thread_id = f"{state.get('platform')}:{state.get('sender_id')}"
-        logger.info(f"[Node Trigger] 'agent' node entered for thread={thread_id}. Message count: {len(messages)}")
+        thread_id = f"{state.get('platform')}+{state.get('chat_id')}+{state.get('sender_id')}"
+        logger.info(f"[Node Trigger] 'chat' node entered for thread={thread_id}. Message count: {len(messages)}")
         
-        response = await llm_with_tools.ainvoke(messages)
+        # 1. Update system message at the beginning of the list using id="system"
+        # Gather info to rebuild system message
+        from .memory import build_system_message
         
-        # Log LLM decision
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            calls = [f"{tc['name']}(args={tc['args']})" for tc in response.tool_calls]
-            logger.info(f"[Node Event] 'agent' node calling tools: {', '.join(calls)}")
-        else:
-            snippet = response.content[:100] + "..." if len(response.content) > 100 else response.content
-            logger.info(f"[Node Event] 'agent' node replying textually. Response snippet: {snippet!r}")
-            
-        return {"messages": [response]}
+        # Retrieve stored customer details if available
+        customer_phone = state.get("extra", {}).get("customer_phone")
+        customer_address = state.get("extra", {}).get("customer_address")
+        
+        system_msg = build_system_message(
+            system_prompt=state["system_prompt"],
+            previous_summary=state.get("previous_summary"),
+            platform=state["platform"],
+            bot_name=state["bot_name"],
+            auto_order_enabled=state["auto_order_enabled"],
+            customer_phone=customer_phone,
+            customer_address=customer_address
+        )
+        system_msg.id = "system"
+        
+        # Invoke LLM with updated system prompt + history
+        # (add_messages will overwrite the system message since it has id="system")
+        response = await llm_with_tools.ainvoke([system_msg] + [m for m in messages if getattr(m, "id", None) != "system"])
+        
+        return {"messages": [system_msg, response]}
     
-    # Create the tool execution node using LangGraph's prebuilt ToolNode
+    async def generate_product_card_node(state: AgentState) -> dict:
+        """
+        Generate visual product card PNGs using Pillow, upload them to Cloudinary,
+        and append the URLs to state.
+        """
+        messages = state["messages"]
+        last_message = messages[-1]
+        
+        product_ids = []
+        tool_call_id = None
+        tool_name = "generate_product_card"
+        
+        if isinstance(last_message, AIMessage) and last_message.tool_calls:
+            for tc in last_message.tool_calls:
+                if tc["name"] == "generate_product_card":
+                    product_ids = tc["args"].get("product_ids", [])
+                    tool_call_id = tc["id"]
+                    break
+        
+        if not product_ids or not tool_call_id:
+            logger.warning("generate_product_card called but no product_ids or tool_call_id found.")
+            return {}
+            
+        logger.info(f"[Node Trigger] 'generate_product_card' for products: {product_ids}")
+        image_urls = list(state.get("image_urls") or [])
+        
+        _, product_stub, _ = WorkersGRPCClient.get_stubs()
+        
+        for pid in product_ids:
+            try:
+                request = service_pb2.GetProductDetailRequest(
+                    organization_id=state["organization_id"],
+                    product_id=pid
+                )
+                response = await product_stub.GetProductDetail(request)
+                if not response.success or not response.product:
+                    logger.warning(f"Failed to fetch details for product: {pid}")
+                    continue
+                
+                # Generate visual card via Pillow
+                img_bytes = _draw_pillow_card(response.product)
+                
+                # Upload to Cloudinary
+                img_url = await upload_cloudinary_image_bytes(
+                    img_bytes,
+                    f"card_{pid}.png",
+                    "image/png",
+                    state["organization_id"],
+                    state["organization_name"]
+                )
+                if img_url:
+                    image_urls.append(img_url)
+                    logger.info(f"Product card uploaded successfully to Cloudinary: {img_url}")
+            except Exception as e:
+                logger.error(f"Error drawing or uploading product card for {pid}: {e}", exc_info=True)
+                
+        # Satisfy tool call
+        tool_msg = ToolMessage(
+            content=f"Successfully generated {len(image_urls)} product cards.",
+            tool_call_id=tool_call_id,
+            name=tool_name
+        )
+        # Create final answer
+        ai_reply = AIMessage(
+            content=f"Here is the product card for the requested product(s):"
+        )
+        return {
+            "messages": [tool_msg, ai_reply],
+            "image_urls": image_urls
+        }
+    
+    # Prebuilt ToolNode
     tool_node_prebuilt = ToolNode(tools)
     
     async def logging_tool_node(state: AgentState) -> dict:
-        """
-        The tool node wrapper to log specific tool triggers and execution results.
-        """
-        messages = state["messages"]
-        last_msg = messages[-1]
+        """Wrapper for standard ToolNode execution to log completion."""
+        logger.info("[Node Trigger] 'tools' node entered.")
+        result = await tool_node_prebuilt.ainvoke(state)
+        return result
         
-        tool_calls = getattr(last_msg, "tool_calls", [])
-        calls_str = ", ".join([f"{tc['name']}(args={tc['args']})" for tc in tool_calls])
-        logger.info(f"[Node Trigger] 'tools' node entered. Executing: {calls_str}")
+    async def synthesizer_node(state: AgentState) -> dict:
+        """
+        Cleans the final response text, stripping markdown tags for clean plain-text channels.
+        """
+        logger.info("[Node Trigger] 'synthesizer' node entered.")
+        # Synthesizer is final, so it doesn't need to return new messages,
+        # but we can optionally log the end state.
+        return {}
         
-        try:
-            result = await tool_node_prebuilt.ainvoke(state)
-            
-            # Log results of tool executions
-            if isinstance(result, dict) and "messages" in result:
-                for msg in result["messages"]:
-                    if hasattr(msg, "tool_call_id"):
-                        tool_name = getattr(msg, "name", "unknown")
-                        content_str = str(msg.content)
-                        snippet = content_str[:200] + "..." if len(content_str) > 200 else content_str
-                        logger.info(f"[Node Event] Tool '{tool_name}' (id={msg.tool_call_id}) completed. Result snippet: {snippet!r}")
-            return result
-        except Exception as e:
-            logger.error(f"[Node Event] 'tools' node execution failed: {e}", exc_info=True)
-            raise e
-            
     # Build the graph
     graph = StateGraph(AgentState)
     
     # Add nodes
-    graph.add_node("agent", agent_node)
+    graph.add_node("chat", chat_node)
     graph.add_node("tools", logging_tool_node)
+    graph.add_node("generate_product_card", generate_product_card_node)
+    graph.add_node("synthesizer", synthesizer_node)
     
-    # Set the entry point
-    graph.set_entry_point("agent")
+    # Routing
+    graph.set_entry_point("chat")
     
-    # Add conditional edges from agent node
     graph.add_conditional_edges(
-        "agent",
+        "chat",
         _should_continue,
         {
             "tools": "tools",
-            END: END
+            "generate_product_card": "generate_product_card",
+            "synthesizer": "synthesizer"
         }
     )
     
-    # After tool execution, always go back to agent for reasoning
-    graph.add_edge("tools", "agent")
+    graph.add_edge("tools", "chat")
+    graph.add_edge("generate_product_card", END)
+    graph.add_edge("synthesizer", END)
     
-    # Compile and return
-    compiled = graph.compile()
-    logger.debug("ReAct agent graph compiled successfully.")
+    compiled = graph.compile(checkpointer=checkpointer)
+    logger.debug("Refactored 2-way routing state graph compiled.")
     return compiled
+
+
+
+

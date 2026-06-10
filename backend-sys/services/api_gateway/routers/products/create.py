@@ -17,6 +17,7 @@ async def create_product(
     stock: int = Form(0),
     sku: Optional[str] = Form(None),
     is_active: bool = Form(True),
+    metadata_json: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(check_permission("products"))
 ):
@@ -47,7 +48,8 @@ async def create_product(
             is_active=is_active,
             image_file_bytes=image_bytes,
             image_file_name=image_name,
-            image_file_content_type=image_content_type
+            image_file_content_type=image_content_type,
+            metadata_json=metadata_json or ""
         )
 
         res = await request.app.state.product_stub.CreateProduct(grpc_req)
@@ -57,6 +59,14 @@ async def create_product(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=res.message or "Failed to create product."
             )
+
+        import json
+        meta_dict = None
+        if res.product.metadata_json:
+            try:
+                meta_dict = json.loads(res.product.metadata_json)
+            except Exception:
+                pass
 
         product_dict = {
             "id": res.product.id,
@@ -70,7 +80,8 @@ async def create_product(
             "image": res.product.image if res.product.image else None,
             "is_active": res.product.is_active,
             "created_at": res.product.created_at,
-            "updated_at": res.product.updated_at
+            "updated_at": res.product.updated_at,
+            "metadata": meta_dict
         }
 
         return {"success": True, "product": product_dict}

@@ -77,6 +77,32 @@ export const ProductCard = ({ product, onEdit, onDelete, isDeleting }: ProductCa
           <p className="text-xs text-slate-400 font-medium line-clamp-2 min-h-[2rem]">
             {product.description || 'No description provided.'}
           </p>
+          
+          {/* Metadata Section */}
+          {product.metadata && (
+            <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-50">
+              {product.metadata.brand && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100 text-[9px] font-bold">
+                  {product.metadata.brand}
+                </span>
+              )}
+              {product.metadata.category && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100 text-[9px] font-bold">
+                  {product.metadata.category}
+                </span>
+              )}
+              {product.metadata.model && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100 text-[9px] font-bold">
+                  {product.metadata.model}
+                </span>
+              )}
+              {product.metadata.keywords && product.metadata.keywords.slice(0, 3).map((kw, i) => (
+                <span key={i} className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-400 text-[9px]">
+                  #{kw}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

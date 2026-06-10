@@ -195,17 +195,38 @@ class InstagramPlatformHandler(BasePlatformHandler):
                 )
                 
                 if ai_response:
-                    await route_outbound_reply(
-                        org_id=org_id,
-                        bot_name=bot_name,
-                        bot_token=bot_token,
-                        platform=self.platform,
-                        chat_id=chat_id,
-                        sender_id=actual_sender_id,
-                        text=ai_response,
-                        ig_account_id=ig_account_id,
-                    )
-                    logger.info(f"AI agent replied to Instagram message from {sender_name}")
+                    if isinstance(ai_response, str):
+                        text_reply = ai_response
+                        image_urls = []
+                    else:
+                        text_reply = ai_response.get("text")
+                        image_urls = ai_response.get("image_urls", [])
+                    
+                    if image_urls:
+                        for img_url in image_urls:
+                            await route_outbound_reply(
+                                org_id=org_id,
+                                bot_name=bot_name,
+                                bot_token=bot_token,
+                                platform=self.platform,
+                                chat_id=chat_id,
+                                sender_id=actual_sender_id,
+                                text="Shared a product card",
+                                image_url=img_url,
+                                ig_account_id=ig_account_id,
+                            )
+                    if text_reply:
+                        await route_outbound_reply(
+                            org_id=org_id,
+                            bot_name=bot_name,
+                            bot_token=bot_token,
+                            platform=self.platform,
+                            chat_id=chat_id,
+                            sender_id=actual_sender_id,
+                            text=text_reply,
+                            ig_account_id=ig_account_id,
+                        )
+                        logger.info(f"AI agent replied to Instagram message from {sender_name}")
             except Exception as e:
                 logger.error(f"AI agent error for Instagram {sender_id}: {e}", exc_info=True)
 
@@ -237,12 +258,15 @@ class InstagramPlatformHandler(BasePlatformHandler):
         if conv and "messages" in conv:
             next_message_id = len(conv["messages"]) + 1
         
+        from ..chat_service import remove_markdown
+        cleaned_text = remove_markdown(text)
+        
         outbound_msg = MessageDetail(
             message_id=next_message_id,
             direction="outbound",
             sender_id=0,
             sender_name=bot_name,
-            text=text,
+            text=cleaned_text,
             image_url=image_url,
             intent=MessageIntent.NO_INTENT,
             created_at=datetime.now(timezone.utc)
