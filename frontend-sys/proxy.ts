@@ -8,19 +8,29 @@ export async function proxy(request: NextRequest) {
     ? pathname.slice(0, -1) 
     : pathname;
 
+  // Check if this is a shared product page route: /[org_slug]/[token]
+  const segments = normalizedPathname.split('/').filter(Boolean);
+  const isSharedProductPath = segments.length === 2 && ![
+    'login', 'signup', 'privacy-policy', 'terms-of-service',
+    'verify', 'track-your-order', 'track-your-ticket', 'api',
+    'inbox', 'orders', 'ticket', 'products', 'connectors',
+    'ai-config', 'team', 'analytics', 'org-settings'
+  ].includes(segments[0]);
+
   // Define public paths that don't require authentication
   const isPublicPath = 
     normalizedPathname === '/login' || 
     normalizedPathname === '/signup' || 
     normalizedPathname === '/privacy-policy' ||
     normalizedPathname === '/terms-of-service' ||
-    pathname.startsWith('/verify/') ||
-    pathname.startsWith('/track-your-order/') ||
-    pathname.startsWith('/track-your-ticket/') ||
-    pathname.startsWith('/api/') || // Allow API routes (though they should have their own auth)
-    pathname === '/favicon.ico' ||
-    pathname.startsWith('/_next/') ||
-    pathname.includes('.'); // Allow files with extensions (images, etc)
+    normalizedPathname.startsWith('/verify/') ||
+    normalizedPathname.startsWith('/track-your-order/') ||
+    normalizedPathname.startsWith('/track-your-ticket/') ||
+    normalizedPathname.startsWith('/api/') || // Allow API routes (though they should have their own auth)
+    normalizedPathname === '/favicon.ico' ||
+    normalizedPathname.startsWith('/_next/') ||
+    normalizedPathname.includes('.') || // Allow files with extensions (images, etc)
+    isSharedProductPath;
 
   // Get tokens from cookies
   const accessToken = request.cookies.get('access_token')?.value;
