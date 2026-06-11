@@ -60,7 +60,8 @@ async def route_outbound_reply(
     text: str,
     image_url: str = None,
     ig_account_id: str = None,
-    assigned_user: str = None
+    assigned_user: str = None,
+    **extra_fields
 ):
     """
     Produce the outbound reply message event and send it to the kafka chat_service topic.
@@ -76,7 +77,8 @@ async def route_outbound_reply(
         text=text,
         image_url=image_url,
         ig_account_id=ig_account_id,
-        assigned_user=assigned_user
+        assigned_user=assigned_user,
+        **extra_fields
     )
 
 async def handle_chat_event(event: dict):

@@ -1,3 +1,5 @@
+import { Product } from './product';
+
 export interface MessageDetail {
   message_id: number;
   direction: 'inbound' | 'outbound';
@@ -8,6 +10,8 @@ export interface MessageDetail {
   intent?: 'buy' | 'no_intent';
   seen?: boolean;
   created_at: string;
+  message_type?: string;
+  product_data?: Product;
 }
 
 export interface ConversationUser {

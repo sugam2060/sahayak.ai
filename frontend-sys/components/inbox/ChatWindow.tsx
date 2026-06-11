@@ -11,7 +11,6 @@ import { useChatHistory, useSendReply, useToggleAI, useMarkChatAsRead, useLockCh
 import { ContextPanel } from './ContextPanel';
 import { useAuthStore } from '@/store/authStore';
 import dynamic from 'next/dynamic';
-import * as htmlToImage from 'html-to-image';
 import { Product } from '@/types/product';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductShareModal } from './ProductShareModal';
@@ -35,6 +34,49 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+const ProductCardBubble = ({ product }: { product: any }) => {
+  return (
+    <div className="w-[300px] rounded-2xl overflow-hidden bg-white border border-indigo-50 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group/card select-none my-2 text-left">
+      {/* Product Image */}
+      <div className="w-full h-[180px] bg-slate-50 relative overflow-hidden flex items-center justify-center border-b border-indigo-50/50">
+        {product.image ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <Package className="w-12 h-12 text-slate-300" />
+        )}
+      </div>
+
+      {/* Info Section */}
+      <div className="p-4 flex flex-col flex-1 justify-between gap-3 bg-white">
+        <div className="space-y-1">
+          <h4 className="font-heading text-sm font-bold text-slate-800 line-clamp-1 group-hover/card:text-indigo-600 transition-colors">
+            {product.name}
+          </h4>
+          <p className="font-body text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+            {product.description || 'No description provided.'}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between mt-1 pt-2 border-t border-slate-50">
+          <span className="font-heading text-base font-black text-indigo-600">
+            {new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: product.currency || 'NPR',
+            }).format(product.price)}
+          </span>
+          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-extrabold border border-indigo-100/50 hover:bg-indigo-100/30 transition-colors">
+            Quick Details
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const renderMessageText = (text: string) => {
   if (!text) return null;
@@ -209,12 +251,10 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
 
   // Product card sharing states
   const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
-  const [selectedProductForCard, setSelectedProductForCard] = useState<Product | null>(null);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [cardLoadingProgress, setCardLoadingProgress] = useState('');
-  const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,60 +306,39 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
     if (!selectedChat || products.length === 0) return;
     setIsProductSelectorOpen(false);
     setIsGeneratingCard(true);
+    setCardLoadingProgress(`Sharing ${products.length} product(s)...`);
 
     try {
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const productIds = products.map(p => p.id);
 
-      for (let i = 0; i < products.length; i++) {
-        const product = products[i];
-        setCardLoadingProgress(`Preparing card ${i + 1} of ${products.length}: ${product.name}`);
-        setSelectedProductForCard(product);
+      const response = await fetch(`${API_BASE_URL}/api/chats/share-products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          sender_id: selectedChat.senderId.toString(),
+          platform: selectedChat.platform,
+          product_ids: productIds,
+        }),
+      });
 
-        // Wait brief duration for canvas/image layout stability
-        await new Promise((resolve) => setTimeout(resolve, 400));
-
-        const node = cardRef.current;
-        if (!node) throw new Error('Card template node not found.');
-
-        setCardLoadingProgress(`Rendering card ${i + 1} of ${products.length}...`);
-        const dataUrl = await htmlToImage.toPng(node, {
-          cacheBust: true,
-          style: {
-            transform: 'scale(1)',
-          },
-        });
-
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], `${product.name.replace(/\s+/g, '_')}_card.png`, { type: 'image/png' });
-
-        setCardLoadingProgress(`Uploading card ${i + 1} of ${products.length}...`);
-        const formData = new FormData();
-        formData.append('sender_id', selectedChat.senderId.toString());
-        formData.append('platform', selectedChat.platform);
-        formData.append('image_file', file);
-
-        const response = await fetch(`${API_BASE_URL}/api/chats/reply-image`, {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.detail || `Failed to send card for ${product.name}`);
-        }
-
-        queryClient.invalidateQueries({
-          queryKey: ['chat-history', selectedChat.platform, selectedChat.senderId],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ['chats'],
-        });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to share products.');
       }
+
+      queryClient.invalidateQueries({
+        queryKey: ['chat-history', selectedChat.platform, selectedChat.senderId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['chats'],
+      });
     } catch (err) {
       console.error('Error sharing product cards:', err);
     } finally {
-      setSelectedProductForCard(null);
       setIsGeneratingCard(false);
       setCardLoadingProgress('');
     }
@@ -577,49 +596,53 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                 {isInbound ? initials : orgInitials}
               </div>
               <div className={`space-y-1 ${isInbound ? '' : 'items-end flex flex-col'}`}>
-                <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed relative
-                  ${isInbound
-                    ? 'bg-white/80 backdrop-blur-md border border-indigo-50 rounded-tl-none text-slate-700'
-                    : 'bg-indigo-50 border border-indigo-200 rounded-tr-none text-slate-800'}`}
-                >
-                  {msg.image_url && (
-                    <div className="mb-2 max-w-[280px] rounded-lg overflow-hidden border border-slate-100 bg-white flex items-center justify-center">
-                      {(() => {
-                        const url = msg.image_url.toLowerCase();
-                        const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.ogg'];
-                        const isVideo = videoExtensions.some(ext => url.endsWith(ext) || url.includes(ext + '?') || url.includes(ext + '#')) || url.includes('/video/upload/') || url.includes('/video/');
+                {msg.message_type === 'product_card' && msg.product_data ? (
+                  <ProductCardBubble product={msg.product_data} />
+                ) : (
+                  <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed relative
+                    ${isInbound
+                      ? 'bg-white/80 backdrop-blur-md border border-indigo-50 rounded-tl-none text-slate-700'
+                      : 'bg-indigo-50 border border-indigo-200 rounded-tr-none text-slate-800'}`}
+                  >
+                    {msg.image_url && (
+                      <div className="mb-2 max-w-[280px] rounded-lg overflow-hidden border border-slate-100 bg-white flex items-center justify-center">
+                        {(() => {
+                          const url = msg.image_url.toLowerCase();
+                          const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.ogg'];
+                          const isVideo = videoExtensions.some(ext => url.endsWith(ext) || url.includes(ext + '?') || url.includes(ext + '#')) || url.includes('/video/upload/') || url.includes('/video/');
 
-                        if (isVideo) {
+                          if (isVideo) {
+                            return (
+                              <video
+                                src={msg.image_url}
+                                controls
+                                preload="metadata"
+                                className="w-full h-auto max-h-[300px] rounded"
+                              />
+                            );
+                          }
                           return (
-                            <video
+                            <img
                               src={msg.image_url}
-                              controls
-                              preload="metadata"
-                              className="w-full h-auto max-h-[300px] rounded"
+                              alt="Attached media"
+                              className="w-full h-auto object-contain max-h-[300px] cursor-zoom-in hover:opacity-95 transition-opacity"
+                              onClick={() => setZoomImageUrl(msg.image_url || null)}
                             />
                           );
-                        }
-                        return (
-                          <img
-                            src={msg.image_url}
-                            alt="Attached media"
-                            className="w-full h-auto object-contain max-h-[300px] cursor-zoom-in hover:opacity-95 transition-opacity"
-                            onClick={() => setZoomImageUrl(msg.image_url || null)}
-                          />
-                        );
-                      })()}
-                    </div>
-                  )}
-                  {msg.text && msg.text !== "Shared a product card" && <div className="whitespace-pre-wrap">{renderMessageText(msg.text)}</div>}
-                  {isInbound && msg.intent === 'buy' && (
-                    <div className="mt-2 flex items-center gap-1.5 select-none">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[9px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm">
-                        <ShoppingBag className="w-2.5 h-2.5 text-emerald-600" />
-                        Buy Intent
-                      </span>
-                    </div>
-                  )}
-                </div>
+                        })()}
+                      </div>
+                    )}
+                    {msg.text && msg.text !== "Shared a product card" && <div className="whitespace-pre-wrap">{renderMessageText(msg.text)}</div>}
+                    {isInbound && msg.intent === 'buy' && (
+                      <div className="mt-2 flex items-center gap-1.5 select-none">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[9px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm">
+                          <ShoppingBag className="w-2.5 h-2.5 text-emerald-600" />
+                          Buy Intent
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 px-1">
                   <span className="text-[10px] font-medium text-slate-400">{msgTime}</span>
                   {!isInbound && (
@@ -899,54 +922,7 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Hidden Card Template for SVG-to-PNG conversion */}
-      {selectedProductForCard && (
-        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
-          <div
-            ref={cardRef}
-            style={{ width: '800px', height: '1100px' }}
-            className="relative rounded-3xl overflow-hidden bg-white border border-slate-100 flex flex-col font-sans"
-          >
-            {/* Top Product Image (Large Window) */}
-            <div className="w-full h-[750px] bg-slate-50 relative overflow-hidden flex items-center justify-center border-b border-slate-100">
-              {selectedProductForCard.image ? (
-                <img
-                  src={selectedProductForCard.image}
-                  alt={selectedProductForCard.name}
-                  className="w-full h-full object-cover"
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <Package className="w-32 h-32 text-slate-300" />
-              )}
-            </div>
 
-            {/* Bottom Info Section (Clean White Area) */}
-            <div className="w-full h-[350px] p-10 bg-white flex flex-col justify-between">
-              <div>
-                <h3 className="text-3xl font-extrabold text-slate-900 leading-tight line-clamp-1">
-                  {selectedProductForCard.name}
-                </h3>
-                <p className="text-base text-slate-500 mt-4 line-clamp-3 leading-relaxed">
-                  {selectedProductForCard.description || 'No description provided.'}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between mt-auto">
-                <span className="text-4xl font-black text-indigo-600">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: selectedProductForCard.currency,
-                  }).format(selectedProductForCard.price)}
-                </span>
-                <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-sm font-bold border border-indigo-100">
-                  Quick Details
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Loading Overlay for card generation */}
       {isGeneratingCard && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300 animate-in fade-in">

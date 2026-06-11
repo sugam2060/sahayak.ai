@@ -62,34 +62,22 @@ def wrap_text(text, font, max_width):
 
 
 def _draw_pillow_card(product) -> bytes:
-    """Render a card using Jinja2 SVG template and Pillow."""
-    # Format price
-    try:
-        formatted_price = f"{int(product.price):,} {product.currency}"
-    except Exception:
-        formatted_price = f"{product.price} {product.currency}"
-    
-    # Render template via Jinja2
-    template = Template(SVG_TEMPLATE)
-    svg_content = template.render(
-        image_url=product.image or "",
-        name=product.name,
-        description=product.description or "No description provided.",
-        price=formatted_price
-    )
-    
-    # Parse rendered XML
-    root = ET.fromstring(svg_content)
-    
-    # Get overall size
-    width = int(root.attrib.get("width", 1000))
-    height = int(root.attrib.get("height", 1500))
-    
+    """Render a card matching the frontend template layout exactly (800x1100)."""
     # Create Pillow image
+    width, height = 800, 1100
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     
-    # Fonts cache
+    # Draw background card (White with grey border and rounded corners)
+    draw.rounded_rectangle(
+        [0, 0, width, height],
+        radius=24,
+        fill="#FFFFFF",
+        outline="#F1F5F9",
+        width=2
+    )
+    
+    # Fonts helper
     fonts = {}
     def get_font(size, bold=False):
         key = (size, bold)
@@ -102,75 +90,139 @@ def _draw_pillow_card(product) -> bytes:
                     font_path = "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf"
                     fonts[key] = ImageFont.truetype(font_path, size)
                 except Exception:
-                    fonts[key] = ImageFont.load_default()
+                    try:
+                        linux_font = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+                        fonts[key] = ImageFont.truetype(linux_font, size)
+                    except Exception:
+                        fonts[key] = ImageFont.load_default()
         return fonts[key]
 
-    for elem in root:
-        tag = elem.tag.split("}")[-1]
-        if tag == "rect":
-            x = int(elem.attrib.get("x", 0))
-            y = int(elem.attrib.get("y", 0))
-            w = int(elem.attrib.get("width", 0))
-            h = int(elem.attrib.get("height", 0))
-            rx = int(elem.attrib.get("rx", 0))
-            fill = elem.attrib.get("fill", "#FFFFFF")
-            stroke = elem.attrib.get("stroke", None)
-            stroke_width = float(elem.attrib.get("stroke_width", 1))
-            
-            if rx > 0:
-                draw.rounded_rectangle([x, y, x + w, y + h], radius=rx, fill=fill, outline=stroke, width=int(stroke_width))
-            else:
-                draw.rectangle([x, y, x + w, y + h], fill=fill, outline=stroke, width=int(stroke_width))
-                
-        elif tag == "image":
-            href = elem.attrib.get("href", "")
-            x = int(elem.attrib.get("x", 0))
-            y = int(elem.attrib.get("y", 0))
-            w = int(elem.attrib.get("width", 0))
-            h = int(elem.attrib.get("height", 0))
-            
-            # Draw a soft background for the image slot
-            draw.rectangle([x, y, x + w, y + h], fill="#F8FAFC")
-            
-            if href:
-                try:
-                    with httpx.Client() as client:
-                        resp = client.get(href, timeout=5.0)
-                        if resp.status_code == 200:
-                            prod_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-                            # Aspect ratio cover resize
-                            prod_img.thumbnail((w, h))
-                            offset_x = x + (w - prod_img.width) // 2
-                            offset_y = y + (h - prod_img.height) // 2
-                            image.paste(prod_img, (offset_x, offset_y), prod_img)
-                except Exception as ex:
-                    logger.error(f"Failed to fetch image: {ex}")
+    # Image Area: x=0, y=0, w=800, h=750
+    draw.rectangle([2, 2, 798, 750], fill="#F8FAFC")
+    
+    if product.image:
+        try:
+            with httpx.Client() as client:
+                resp = client.get(product.image, timeout=8.0)
+                if resp.status_code == 200:
+                    prod_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                    # Object cover resize & crop:
+                    img_w, img_h = prod_img.size
+                    aspect_ratio = img_w / img_h
+                    target_ratio = 800 / 750
+                    if aspect_ratio > target_ratio:
+                        new_h = 750
+                        new_w = int(750 * aspect_ratio)
+                        prod_img = prod_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                        crop_x = (new_w - 800) // 2
+                        prod_img = prod_img.crop((crop_x, 0, crop_x + 800, 750))
+                    else:
+                        new_w = 800
+                        new_h = int(800 / aspect_ratio)
+                        prod_img = prod_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                        crop_y = (new_h - 750) // 2
+                        prod_img = prod_img.crop((0, crop_y, 800, crop_y + 750))
                     
-        elif tag == "text":
-            x = int(elem.attrib.get("x", 0))
-            y = int(elem.attrib.get("y", 0))
-            fill = elem.attrib.get("fill", "#000000")
-            font_size = int(elem.attrib.get("font_size", 20))
-            font_weight = elem.attrib.get("font_weight", "normal")
-            text_content = elem.text or ""
+                    # Create mask for rounded top corners
+                    mask = Image.new("L", (800, 750), 0)
+                    mask_draw = ImageDraw.Draw(mask)
+                    mask_draw.rounded_rectangle([0, 0, 800, 1100], radius=24, fill=255)
+                    
+                    image.paste(prod_img, (0, 0), mask)
+        except Exception as ex:
+            logger.error(f"Failed to fetch and render cover image: {ex}")
             
-            bold = font_weight in ("bold", "black")
-            font = get_font(font_size, bold)
-            
-            max_width = width - x - 50 # 50px right margin
-            is_badge = "Quick Details" in text_content or font_size < 22
-            
-            if not is_badge and max_width > 100:
-                lines = wrap_text(text_content, font, max_width)
-                curr_y = y
-                line_height = font_size + int(font_size * 0.3)
-                max_lines = 6 if font_size <= 28 else 2
-                for line in lines[:max_lines]:
-                    draw.text((x, curr_y), line, fill=fill, font=font)
-                    curr_y += line_height
-            else:
-                draw.text((x, y), text_content, fill=fill, font=font)
-                
+    # Redraw the top border portion to keep corners rounded nicely
+    draw.rounded_rectangle(
+        [0, 0, width, height],
+        radius=24,
+        fill=None,
+        outline="#F1F5F9",
+        width=2
+    )
+
+    # Divider line
+    draw.line([0, 750, width, 750], fill="#F1F5F9", width=2)
+    
+    # Title
+    title_font = get_font(30, bold=True)
+    title_text = product.name or "Unnamed Product"
+    while True:
+        bbox = title_font.getbbox(title_text)
+        w = bbox[2] - bbox[0]
+        if w <= 720 or len(title_text) <= 3:
+            break
+        title_text = title_text[:-4] + "..."
+    draw.text((40, 790), title_text, fill="#0F172A", font=title_font)
+    
+    # Description
+    desc_font = get_font(16, bold=False)
+    desc_text = product.description or "No description provided."
+    lines = wrap_text(desc_text, desc_font, 720)
+    
+    if len(lines) > 3:
+        lines = lines[:3]
+        last_line = lines[2]
+        while True:
+            bbox = desc_font.getbbox(last_line + "...")
+            w = bbox[2] - bbox[0]
+            if w <= 720 or len(last_line) <= 3:
+                break
+            last_line = last_line[:-1]
+        lines[2] = last_line + "..."
+        
+    curr_y = 846
+    for line in lines:
+        draw.text((40, curr_y), line, fill="#64748B", font=desc_font)
+        curr_y += 26
+        
+    # Price formatting
+    currency_upper = (product.currency or "NPR").upper()
+    symbol_map = {
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£",
+        "INR": "₹",
+        "CAD": "CA$",
+        "AUD": "A$",
+        "JPY": "¥",
+    }
+    symbol = symbol_map.get(currency_upper, f"{currency_upper}\u00a0")
+    try:
+        val = float(product.price)
+        formatted_num = f"{val:,.2f}"
+    except Exception:
+        formatted_num = str(product.price)
+    price_text = f"{symbol}{formatted_num}"
+    
+    # Draw Price
+    price_font = get_font(36, bold=True)
+    draw.text((40, 1010), price_text, fill="#4F46E5", font=price_font)
+    
+    # Quick Details button
+    btn_font = get_font(14, bold=True)
+    btn_text = "Quick Details"
+    
+    btn_bbox = btn_font.getbbox(btn_text)
+    btn_w = btn_bbox[2] - btn_bbox[0]
+    rect_w = btn_w + 32
+    rect_h = 38
+    rect_x = width - 40 - rect_w
+    rect_y = 1012
+    
+    draw.rounded_rectangle(
+        [rect_x, rect_y, rect_x + rect_w, rect_y + rect_h],
+        radius=12,
+        fill="#EEF2FF",
+        outline="#E0E7FF",
+        width=1
+    )
+    
+    text_x = rect_x + 16
+    text_y = rect_y + (rect_h - 14) // 2 - 2
+    draw.text((text_x, text_y), btn_text, fill="#4F46E5", font=btn_font)
+    
+    # Save to bytes
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format="PNG")
     return img_byte_arr.getvalue()

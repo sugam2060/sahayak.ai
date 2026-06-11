@@ -17,6 +17,8 @@ class MessageDetail(BaseModel):
     intent: Optional[MessageIntent] = Field(default=MessageIntent.NO_INTENT, description="Intent of the message")
     assigned_user: Optional[str] = Field(default=None, description="UUID of the user/agent who sent this outbound message")
     seen: bool = Field(default=False, description="Whether the message has been seen/read")
+    message_type: Optional[str] = Field(default=None, description="Optional type, e.g., product_card")
+    product_data: Optional[Dict[str, Any]] = Field(default=None, description="Optional structured product card data")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ConversationUser(BaseModel):

@@ -171,10 +171,25 @@ class TelegramPlatformHandler(BasePlatformHandler):
                     if isinstance(ai_response, str):
                         text_reply = ai_response
                         image_urls = []
+                        products = []
                     else:
                         text_reply = ai_response.get("text")
                         image_urls = ai_response.get("image_urls", [])
+                        products = ai_response.get("products", [])
                     
+                    if products:
+                        for prod in products:
+                            await route_outbound_reply(
+                                org_id=org_id,
+                                bot_name=bot_name,
+                                bot_token=bot_token,
+                                platform=self.platform,
+                                chat_id=chat_id,
+                                sender_id=actual_sender_id,
+                                text="Shared a product card",
+                                message_type="product_card",
+                                product_data=prod
+                            )
                     if image_urls:
                         for img_url in image_urls:
                             await route_outbound_reply(
@@ -232,6 +247,8 @@ class TelegramPlatformHandler(BasePlatformHandler):
         cleaned_text = remove_markdown(text)
         
         assigned_user = event.get("assigned_user")
+        message_type = event.get("message_type")
+        product_data = event.get("product_data")
 
         outbound_msg = MessageDetail(
             message_id=next_message_id,
@@ -242,6 +259,8 @@ class TelegramPlatformHandler(BasePlatformHandler):
             image_url=image_url,
             intent=MessageIntent.NO_INTENT,
             assigned_user=assigned_user,
+            message_type=message_type,
+            product_data=product_data,
             created_at=datetime.now(timezone.utc)
         )
         
@@ -263,21 +282,143 @@ class TelegramPlatformHandler(BasePlatformHandler):
         
         # Send message back to Telegram user via Bot API
         from shared.config import TELEGRAM_API_BASE_URL
+        from uuid import UUID
         try:
             async with httpx.AsyncClient() as client:
-                if image_url:
+                if message_type == "product_card" and product_data:
+                    from types import SimpleNamespace
+                    p = SimpleNamespace(**product_data)
+                    
+                    # Format Price
+                    currency_upper = (p.currency or "NPR").upper()
+                    symbol_map = {
+                        "USD": "$", "EUR": "€", "GBP": "£", "INR": "₹",
+                        "CAD": "CA$", "AUD": "A$", "JPY": "¥"
+                    }
+                    symbol = symbol_map.get(currency_upper, f"{currency_upper} ")
+                    try:
+                        val = float(p.price)
+                        formatted_price = f"{val:,.2f}"
+                    except Exception:
+                        formatted_price = str(p.price)
+                        
+                    # Format caption
+                    caption_lines = [
+                        f"*{p.name}*",
+                        p.description or "No description provided.",
+                        f"💰 {symbol}{formatted_price}"
+                    ]
+                    
+                    # Include metadata (except keywords)
+                    if p.sku:
+                        caption_lines.append(f"SKU: `{p.sku}`")
+                    if p.metadata and isinstance(p.metadata, dict):
+                        meta_items = []
+                        for k, v in p.metadata.items():
+                            if k.lower() != "keywords" and v:
+                                meta_items.append(f"{k}: {v}")
+                        if meta_items:
+                            caption_lines.append("\n".join(meta_items))
+                            
+                    caption = "\n".join(caption_lines)
+                    
+                    # Send photo using direct image URL first
+                    sent_successfully = False
+                    if p.image:
+                        telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendPhoto"
+                        tg_payload = {
+                            "chat_id": chat_id,
+                            "photo": p.image,
+                            "caption": caption,
+                            "parse_mode": "Markdown"
+                        }
+                        logger.info(f"Sending native Telegram product photo to chat {chat_id}...")
+                        tg_response = await client.post(telegram_url, json=tg_payload, timeout=8.0)
+                        if tg_response.status_code == 200:
+                            sent_successfully = True
+                            logger.debug("Successfully sent native product card to Telegram.")
+                        else:
+                            logger.error(f"Failed to send native Telegram photo: {tg_response.status_code} - {tg_response.text}")
+                            
+                    # Trigger Pillow fallback if native send failed or image is missing
+                    if not sent_successfully:
+                        logger.info("Executing Pillow fallback for Telegram product card...")
+                        from shared.redis_pool import RedisPool
+                        import importlib
+                        gen_card_module = importlib.import_module("services.chatai-service.ai.tools.products.generate_product_card")
+                        _draw_pillow_card = gen_card_module._draw_pillow_card
+                        
+                        TEMPLATE_VERSION = "v1"
+                        cache_key = f"product-card:{p.id}:{TEMPLATE_VERSION}"
+                        redis_client = RedisPool.get_client()
+                        
+                        cached_url = await redis_client.get(cache_key)
+                        if not cached_url:
+                            # Retrieve organization name from DB
+                            org_name = ""
+                            try:
+                                from shared.database.engine import SessionLocal
+                                from shared.database.schema.organizations import Organization
+                                from sqlalchemy import select
+                                async with SessionLocal() as db_session:
+                                    org_stmt = select(Organization.name).where(Organization.id == UUID(org_id))
+                                    org_res = await db_session.execute(org_stmt)
+                                    org_name = org_res.scalar() or ""
+                            except Exception as db_err:
+                                logger.error(f"Failed to fetch organization name for folder naming: {db_err}")
+                                
+                            img_bytes = _draw_pillow_card(p)
+                            
+                            from shared.utils import upload_cloudinary_image_bytes
+                            img_url = await upload_cloudinary_image_bytes(
+                                img_bytes,
+                                f"card_{p.id}.png",
+                                "image/png",
+                                org_id,
+                                org_name
+                            )
+                            if img_url:
+                                cached_url = img_url
+                                await redis_client.setex(cache_key, 86400, img_url)
+                                
+                        if cached_url:
+                            telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendPhoto"
+                            tg_payload = {
+                                "chat_id": chat_id,
+                                "photo": cached_url,
+                                "caption": caption,
+                                "parse_mode": "Markdown"
+                            }
+                            tg_response = await client.post(telegram_url, json=tg_payload, timeout=8.0)
+                            if tg_response.status_code == 200:
+                                logger.debug("Successfully sent fallback product card photo to Telegram.")
+                            else:
+                                logger.error(f"Failed to send fallback photo to Telegram: {tg_response.status_code} - {tg_response.text}")
+                        else:
+                            # Final fallback: text only
+                            telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendMessage"
+                            tg_payload = {
+                                "chat_id": chat_id,
+                                "text": caption,
+                                "parse_mode": "Markdown"
+                            }
+                            await client.post(telegram_url, json=tg_payload, timeout=8.0)
+
+                elif image_url:
                     telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendPhoto"
                     tg_payload = {"chat_id": chat_id, "photo": image_url}
                     if text and text != "Shared a product card":
                         tg_payload["caption"] = text
+                    logger.info(f"Sending manual photo reply to Telegram chat {chat_id}...")
+                    tg_response = await client.post(telegram_url, json=tg_payload, timeout=5.0)
+                    if tg_response.status_code != 200:
+                        logger.error(f"Failed to send photo: {tg_response.status_code} - {tg_response.text}")
                 else:
                     telegram_url = f"{TELEGRAM_API_BASE_URL}/bot{bot_token}/sendMessage"
                     tg_payload = {"chat_id": chat_id, "text": text}
-                logger.info(f"Sending manual reply to Telegram chat {chat_id} via Bot API at {telegram_url}...")
-                tg_response = await client.post(telegram_url, json=tg_payload, timeout=5.0)
-                if tg_response.status_code == 200:
-                    logger.debug("Successfully sent manual reply to Telegram user.")
-                else:
-                    logger.error(f"Failed to send manual reply to Telegram: {tg_response.status_code} - {tg_response.text}")
+                    logger.info(f"Sending manual text reply to Telegram chat {chat_id}...")
+                    tg_response = await client.post(telegram_url, json=tg_payload, timeout=5.0)
+                    if tg_response.status_code != 200:
+                        logger.error(f"Failed to send message: {tg_response.status_code} - {tg_response.text}")
         except Exception as e:
             logger.error(f"Network error sending message to Telegram user: {str(e)}")

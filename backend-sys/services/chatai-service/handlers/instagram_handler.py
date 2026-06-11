@@ -216,10 +216,26 @@ class InstagramPlatformHandler(BasePlatformHandler):
                     if isinstance(ai_response, str):
                         text_reply = ai_response
                         image_urls = []
+                        products = []
                     else:
                         text_reply = ai_response.get("text")
                         image_urls = ai_response.get("image_urls", [])
+                        products = ai_response.get("products", [])
                     
+                    if products:
+                        for prod in products:
+                            await route_outbound_reply(
+                                org_id=org_id,
+                                bot_name=bot_name,
+                                bot_token=bot_token,
+                                platform=self.platform,
+                                chat_id=chat_id,
+                                sender_id=actual_sender_id,
+                                text="Shared a product card",
+                                ig_account_id=ig_account_id,
+                                message_type="product_card",
+                                product_data=prod
+                            )
                     if image_urls:
                         for img_url in image_urls:
                             await route_outbound_reply(
@@ -232,7 +248,7 @@ class InstagramPlatformHandler(BasePlatformHandler):
                                 text="Shared a product card",
                                 image_url=img_url,
                                 ig_account_id=ig_account_id,
-                            )
+                             )
                     if text_reply:
                         await route_outbound_reply(
                             org_id=org_id,
@@ -280,6 +296,8 @@ class InstagramPlatformHandler(BasePlatformHandler):
         cleaned_text = remove_markdown(text)
         
         assigned_user = event.get("assigned_user")
+        message_type = event.get("message_type")
+        product_data = event.get("product_data")
 
         outbound_msg = MessageDetail(
             message_id=next_message_id,
@@ -290,6 +308,8 @@ class InstagramPlatformHandler(BasePlatformHandler):
             image_url=image_url,
             intent=MessageIntent.NO_INTENT,
             assigned_user=assigned_user,
+            message_type=message_type,
+            product_data=product_data,
             created_at=datetime.now(timezone.utc)
         )
         
@@ -311,21 +331,125 @@ class InstagramPlatformHandler(BasePlatformHandler):
         
         # Send reply via Instagram Graph API
         instagram_endpoint = f"https://graph.instagram.com/v25.0/{ig_account_id}/messages"
+        from uuid import UUID
         try:
             async with httpx.AsyncClient() as client:
-                if image_url:
+                if message_type == "product_card" and product_data:
+                    from types import SimpleNamespace
+                    p = SimpleNamespace(**product_data)
+                    
+                    # Format Price
+                    currency_upper = (p.currency or "NPR").upper()
+                    symbol_map = {
+                        "USD": "$", "EUR": "€", "GBP": "£", "INR": "₹",
+                        "CAD": "CA$", "AUD": "A$", "JPY": "¥"
+                    }
+                    symbol = symbol_map.get(currency_upper, f"{currency_upper} ")
+                    try:
+                        val = float(p.price)
+                        formatted_price = f"{val:,.2f}"
+                    except Exception:
+                        formatted_price = str(p.price)
+                        
+                    sent_successfully = False
+                    if p.image:
+                        # Construct native generic template payload
+                        payload = {
+                            "recipient": {"id": sender_id},
+                            "message": {
+                                "attachment": {
+                                    "type": "template",
+                                    "payload": {
+                                        "template_type": "generic",
+                                        "elements": [
+                                            {
+                                                "title": p.name[:79],
+                                                "subtitle": f"{symbol}{formatted_price} · {p.description or ''}"[:79],
+                                                "image_url": p.image
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                        logger.info(f"Sending native Instagram generic template product card to user {sender_id}...")
+                        resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=8.0)
+                        if resp.status_code == 200:
+                            sent_successfully = True
+                            logger.debug("Successfully sent Instagram generic template.")
+                        else:
+                            logger.error(f"Failed to send Instagram generic template: {resp.status_code} - {resp.text}")
+                            
+                    # Trigger Pillow fallback if native send failed or image is missing
+                    if not sent_successfully:
+                        logger.info("Executing Pillow fallback for Instagram product card...")
+                        from shared.redis_pool import RedisPool
+                        import importlib
+                        gen_card_module = importlib.import_module("services.chatai-service.ai.tools.products.generate_product_card")
+                        _draw_pillow_card = gen_card_module._draw_pillow_card
+                        
+                        TEMPLATE_VERSION = "v1"
+                        cache_key = f"product-card:{p.id}:{TEMPLATE_VERSION}"
+                        redis_client = RedisPool.get_client()
+                        
+                        cached_url = await redis_client.get(cache_key)
+                        if not cached_url:
+                            # Retrieve organization name from DB
+                            org_name = ""
+                            try:
+                                from shared.database.engine import SessionLocal
+                                from shared.database.schema.organizations import Organization
+                                from sqlalchemy import select
+                                async with SessionLocal() as db_session:
+                                    org_stmt = select(Organization.name).where(Organization.id == UUID(org_id))
+                                    org_res = await db_session.execute(org_stmt)
+                                    org_name = org_res.scalar() or ""
+                            except Exception as db_err:
+                                logger.error(f"Failed to fetch organization name for folder naming: {db_err}")
+                                
+                            img_bytes = _draw_pillow_card(p)
+                            
+                            from shared.utils import upload_cloudinary_image_bytes
+                            img_url = await upload_cloudinary_image_bytes(
+                                img_bytes,
+                                f"card_{p.id}.png",
+                                "image/png",
+                                org_id,
+                                org_name
+                            )
+                            if img_url:
+                                cached_url = img_url
+                                await redis_client.setex(cache_key, 86400, img_url)
+                                
+                        if cached_url:
+                            payload = {
+                                "recipient": {"id": sender_id},
+                                "message": {"attachment": {"type": "image", "payload": {"url": cached_url}}}
+                            }
+                            resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=8.0)
+                            if resp.status_code == 200:
+                                logger.debug("Successfully sent fallback card photo to Instagram.")
+                            else:
+                                logger.error(f"Failed to send fallback photo to Instagram: {resp.status_code} - {resp.text}")
+                        else:
+                            # Final fallback: text only
+                            payload = {
+                                "recipient": {"id": sender_id},
+                                "message": {"text": f"{p.name}\n💰 {symbol}{formatted_price}\n\n{p.description or ''}"}
+                            }
+                            await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=8.0)
+
+                elif image_url:
                     payload = {
                         "recipient": {"id": sender_id},
                         "message": {"attachment": {"type": "image", "payload": {"url": image_url}}}
                     }
                     logger.info(f"Sending Instagram image attachment to user {sender_id} via Graph API.")
                     resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=5.0)
-                    if resp.status_code == 200:
-                        logger.debug("Successfully sent Instagram image attachment.")
-                    else:
+                    if resp.status_code != 200:
                         logger.error(f"Failed to send Instagram image attachment: {resp.status_code} - {resp.text}")
-
-                if text:
+ 
+                if text and text != "Shared a product card":
                     chunks = split_message(text, limit=950)
                     for idx, chunk in enumerate(chunks):
                         payload = {
@@ -334,9 +458,7 @@ class InstagramPlatformHandler(BasePlatformHandler):
                         }
                         logger.info(f"Sending Instagram DM reply chunk {idx+1}/{len(chunks)} to user {sender_id} via Graph API.")
                         resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=5.0)
-                        if resp.status_code == 200:
-                            logger.debug(f"Successfully sent Instagram DM reply chunk {idx+1}.")
-                        else:
+                        if resp.status_code != 200:
                             logger.error(f"Failed to send Instagram DM reply chunk {idx+1}: {resp.status_code} - {resp.text}")
         except Exception as e:
             logger.error(f"Network error sending Instagram DM reply: {str(e)}")

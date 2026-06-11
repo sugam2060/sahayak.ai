@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
 from typing import Optional, List, Union
 from datetime import datetime, timezone
 from shared.database.mongodb import MongoDBManager
@@ -496,6 +496,230 @@ async def send_chat_reply_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send reply: {str(e)}"
+        )
+
+class ShareProductsRequest(BaseModel):
+    sender_id: Union[int, str]
+    platform: str
+    product_ids: List[str]
+
+@router.post("/share-products")
+async def share_products_endpoint(
+    req: ShareProductsRequest,
+    request: Request,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(check_permission("chats"))
+):
+    """
+    Share one or more products directly by ID. Queries the products details via gRPC and
+    publishes the outbound product card events to the Kafka chat_service topic.
+    """
+    try:
+        # Verify access rights
+        has_access = await check_chat_access(req.platform, req.sender_id, current_user["user_id"], db_session)
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to reply to this chat. It is either assigned to another user or you lack OWNER permissions for unassigned chats."
+            )
+
+        # 1. Retrieve conversation from MongoDB to get organization_id, bot_id, and chat_id
+        mongo_db = MongoDBManager.get_db()
+        sender_id_int = int(req.sender_id) if str(req.sender_id).isdigit() else None
+        query_id = {"$in": [req.sender_id, sender_id_int]} if sender_id_int is not None else req.sender_id
+        conv = await mongo_db.conversations.find_one({
+            "platform": req.platform.lower(),
+            "user.sender_id": query_id
+        })
+        if not conv:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found in MongoDB."
+            )
+
+        org_id = conv.get("organization_id")
+        conv_id = str(conv["_id"])
+
+        # Enforce Lock: check Redis first, fallback to MongoDB
+        try:
+            redis_lock = await ChatLockManager.get_lock(org_id, conv_id)
+        except Exception:
+            redis_lock = None
+
+        if redis_lock:
+            bot_id = redis_lock.get("user_id")
+        else:
+            bot_id = conv.get("bot_id")
+
+        allowed_users = conv.get("allowed_users", [])
+        is_allowed = str(current_user["user_id"]) in [str(u) for u in allowed_users] or current_user.get("role", "").upper() == "OWNER"
+        
+        if bot_id and not is_allowed:
+            if bot_id == "ai":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This conversation is locked by AI. Please disable AI auto-reply to send a message."
+                )
+            elif bot_id != current_user["user_id"]:
+                locker_name = await get_user_name_by_id(db_session, bot_id) or "another agent"
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"This conversation is locked by {locker_name}."
+                )
+
+        # Auto-claim lock if unlocked
+        if not bot_id:
+            bot_id = current_user["user_id"]
+            await mongo_db.conversations.update_one(
+                {
+                    "platform": req.platform.lower(),
+                    "user.sender_id": query_id
+                },
+                {
+                    "$set": {
+                        "bot_id": bot_id,
+                        "ai_assigned": False,
+                        "updated_at": datetime.now(timezone.utc)
+                    }
+                }
+            )
+            try:
+                locker_name = await get_user_name_by_id(db_session, bot_id)
+                # Find active socket ID
+                socket_id = manager.find_socket_id(bot_id, req.platform, str(req.sender_id)) or f"fallback-{uuid4()}"
+                await ChatLockManager.acquire_lock(
+                    org_id=org_id,
+                    conversation_id=conv_id,
+                    user_id=bot_id,
+                    socket_id=socket_id,
+                    user_name=locker_name
+                )
+                ws_event = {
+                    "org_id": org_id,
+                    "platform": req.platform.lower(),
+                    "sender_id": req.sender_id,
+                    "type": "chat_lock_update",
+                    "bot_id": bot_id,
+                    "locker_name": locker_name
+                }
+                await manager.broadcast(org_id, ws_event)
+            except Exception as ws_err:
+                logger.error(f"Failed to broadcast auto-claim chat_lock_update: {ws_err}")
+            
+        org_id = conv.get("organization_id")
+        chat_id = conv.get("chat_id")
+        
+        # 2. Look up the connector in PostgreSQL to get the bot_token
+        stmt = select(PlatformConnector).where(
+            PlatformConnector.platform == req.platform.lower()
+        )
+        result = await db_session.execute(stmt)
+        connectors = result.scalars().all()
+        
+        connector = None
+        for c in connectors:
+            if str(c.business_id) == str(org_id):
+                connector = c
+                break
+                
+        if not connector:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No active connector found for platform '{req.platform}' and organization ID '{org_id}'."
+            )
+            
+        # Decrypt token if encrypted
+        bot_token = None
+        if connector.tokens.get("access_token_encrypted"):
+            from shared.utils import decrypt_access_token
+            from shared.config import JWT_SECRET
+            try:
+                bot_token = decrypt_access_token(
+                    connector.tokens["token_iv"],
+                    connector.tokens["token_ciphertext"],
+                    connector.tokens["token_auth_tag"],
+                    str(JWT_SECRET)
+                )
+            except Exception as e:
+                logger.error(f"Failed to decrypt Instagram access token: {e}")
+        else:
+            bot_token = connector.tokens.get("bot_token") or connector.tokens.get("access_token")
+
+        if not bot_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Connector is missing the bot token configuration."
+            )
+            
+        bot_name = connector.platform_account_name or "UnknownBot"
+
+        # 3. Fetch product details and publish product_card events to Kafka
+        from shared.proto import service_pb2
+        import json
+        import importlib
+        _chat_service = importlib.import_module("services.chatai-service.chat_service")
+        route_outbound_reply = _chat_service.route_outbound_reply
+
+        for pid in req.product_ids:
+            try:
+                grpc_req = service_pb2.GetProductDetailRequest(
+                    organization_id=str(org_id),
+                    product_id=str(pid)
+                )
+                res = await request.app.state.product_stub.GetProductDetail(grpc_req)
+                if not res.success or not res.product:
+                    logger.warning(f"Product not found when sharing: {pid}")
+                    continue
+                
+                # Format product dict
+                p = res.product
+                meta_dict = None
+                if p.metadata_json:
+                    try:
+                        meta_dict = json.loads(p.metadata_json)
+                    except Exception:
+                        pass
+                
+                product_dict = {
+                    "id": p.id,
+                    "organization_id": p.organization_id,
+                    "name": p.name,
+                    "description": p.description if p.description else None,
+                    "price": p.price,
+                    "currency": p.currency,
+                    "stock": p.stock,
+                    "sku": p.sku if p.sku else None,
+                    "image": p.image if p.image else None,
+                    "is_active": p.is_active,
+                    "created_at": p.created_at,
+                    "updated_at": p.updated_at,
+                    "metadata": meta_dict
+                }
+
+                # Publish product card event
+                await route_outbound_reply(
+                    org_id=str(org_id),
+                    bot_name=bot_name,
+                    bot_token=bot_token,
+                    platform=req.platform.lower(),
+                    chat_id=chat_id,
+                    sender_id=req.sender_id,
+                    text="Shared a product card",
+                    ig_account_id=connector.platform_account_id if req.platform.lower() == "instagram" else None,
+                    assigned_user=current_user["user_id"],
+                    message_type="product_card",
+                    product_data=product_dict
+                )
+            except Exception as prod_err:
+                logger.error(f"Error sharing product card for {pid}: {prod_err}", exc_info=True)
+
+        return {"success": True, "message": "Product card sharing events successfully sent to Kafka."}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to share products: {str(e)}"
         )
 
 @router.post("/reply-image")

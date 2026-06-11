@@ -204,7 +204,8 @@ async def run_agent(
                 "customer_address": customer_address,
                 **kwargs
             },
-            "image_urls": [] # Reset image URLs for this run
+            "image_urls": [], # Reset image URLs for this run
+            "products": [] # Reset products for this run
         }
         
         # Emit processing started event
@@ -255,11 +256,13 @@ async def run_agent(
         # Extract response text and image URLs
         response_text = _extract_final_response(result)
         image_urls = result.get("image_urls") or []
+        products = result.get("products") or []
         
         logger.info(f"Agent response for {platform}:{sender_id}: {response_text[:100] if response_text else 'None'}...")
         return {
             "text": response_text,
-            "image_urls": image_urls
+            "image_urls": image_urls,
+            "products": products
         }
         
     except Exception as e:

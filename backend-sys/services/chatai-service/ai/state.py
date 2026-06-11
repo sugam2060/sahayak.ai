@@ -40,3 +40,6 @@ class AgentState(TypedDict):
 
     # Generated image URLs for product cards
     image_urls: Optional[list[str]]
+    
+    # Generated structured product card dicts
+    products: Optional[list[dict]]

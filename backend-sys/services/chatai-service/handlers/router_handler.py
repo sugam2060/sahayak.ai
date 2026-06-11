@@ -47,7 +47,8 @@ class ChatRouter:
         text: str,
         image_url: str = None,
         ig_account_id: str = None,
-        assigned_user: str = None
+        assigned_user: str = None,
+        **kwargs
     ):
         """
         Generic outbound reply routing for all social media platforms.
@@ -65,6 +66,7 @@ class ChatRouter:
             "ig_account_id": ig_account_id,
             "assigned_user": assigned_user
         }
+        reply_event.update(kwargs)
         
         logger.info(f"Producing outbound {platform} reply to chat_service Kafka topic.")
         try:

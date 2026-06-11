@@ -107,8 +107,7 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
     
     async def generate_product_card_node(state: AgentState) -> dict:
         """
-        Generate visual product card PNGs using Pillow, upload them to Cloudinary,
-        and append the URLs to state.
+        Retrieve product metadata using stubs and append them to products list in state.
         """
         await AIEventEmitter.emit(
             org_id=state["organization_id"],
@@ -143,10 +142,11 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
             return {}
             
         logger.info(f"[Node Trigger] 'generate_product_card' for products: {product_ids}")
-        image_urls = list(state.get("image_urls") or [])
+        products = list(state.get("products") or [])
         
         _, product_stub, _ = WorkersGRPCClient.get_stubs()
         
+        import json
         for pid in product_ids:
             try:
                 request = service_pb2.GetProductDetailRequest(
@@ -158,26 +158,36 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
                     logger.warning(f"Failed to fetch details for product: {pid}")
                     continue
                 
-                # Generate visual card via Pillow
-                img_bytes = _draw_pillow_card(response.product)
+                p = response.product
+                meta_dict = None
+                if p.metadata_json:
+                    try:
+                        meta_dict = json.loads(p.metadata_json)
+                    except Exception:
+                        pass
                 
-                # Upload to Cloudinary
-                img_url = await upload_cloudinary_image_bytes(
-                    img_bytes,
-                    f"card_{pid}.png",
-                    "image/png",
-                    state["organization_id"],
-                    state["organization_name"]
-                )
-                if img_url:
-                    image_urls.append(img_url)
-                    logger.info(f"Product card uploaded successfully to Cloudinary: {img_url}")
+                product_dict = {
+                    "id": p.id,
+                    "organization_id": p.organization_id,
+                    "name": p.name,
+                    "description": p.description if p.description else None,
+                    "price": p.price,
+                    "currency": p.currency,
+                    "stock": p.stock,
+                    "sku": p.sku if p.sku else None,
+                    "image": p.image if p.image else None,
+                    "is_active": p.is_active,
+                    "created_at": p.created_at,
+                    "updated_at": p.updated_at,
+                    "metadata": meta_dict
+                }
+                products.append(product_dict)
             except Exception as e:
-                logger.error(f"Error drawing or uploading product card for {pid}: {e}", exc_info=True)
+                logger.error(f"Error fetching product metadata for {pid}: {e}", exc_info=True)
                 
         # Satisfy tool call
         tool_msg = ToolMessage(
-            content=f"Successfully generated {len(image_urls)} product cards.",
+            content=f"Successfully shared {len(products)} product cards.",
             tool_call_id=tool_call_id,
             name=tool_name
         )
@@ -194,7 +204,7 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         )
         return {
             "messages": [tool_msg, ai_reply],
-            "image_urls": image_urls
+            "products": products
         }
     
     # Prebuilt ToolNode
