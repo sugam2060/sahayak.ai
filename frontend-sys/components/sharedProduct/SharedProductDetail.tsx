@@ -37,17 +37,12 @@ interface SharedProductDetailProps {
 
 export const SharedProductDetail = ({ product }: SharedProductDetailProps) => {
   const currencyUpper = (product.currency || 'NPR').toUpperCase();
-  const symbolMap: Record<string, string> = {
-    USD: '$', EUR: '€', GBP: '£', INR: '₹',
-    CAD: 'CA$', AUD: 'A$', JPY: '¥'
-  };
-  const symbol = symbolMap[currencyUpper] || `${currencyUpper} `;
   
-  // Format price (cents to units)
-  const formattedPrice = (product.price / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  // Format price
+  const formattedPrice = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currencyUpper,
+  }).format(product.price);
 
   const isOutOfStock = product.stock <= 0;
   const metadata = product.metadata as Record<string, unknown> | null | undefined;
@@ -104,7 +99,7 @@ export const SharedProductDetail = ({ product }: SharedProductDetailProps) => {
                 </h1>
                 
                 <div className="text-4xl lg:text-5xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight mb-8">
-                  {symbol}{formattedPrice}
+                  {formattedPrice}
                 </div>
 
                 {/* Description */}
