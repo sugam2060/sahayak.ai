@@ -199,3 +199,29 @@ def test_websocket_internal_chat_flow(test_client, mock_session_local):
             "text": "Hello world"
         })
 
+def test_delete_group(test_client, mock_mongo_db):
+    test_client.cookies.set("access_token", "fake_access_token")
+    
+    mock_group = {
+        "_id": "group_123",
+        "organization_id": "11111111-2222-3333-4444-555555555555",
+        "type": "group",
+        "user_ids": ["22222222-3333-4444-5555-666666666666"],
+        "group_admin_ids": ["22222222-3333-4444-5555-666666666666"],
+        "group_name": "Dev Team"
+    }
+    
+    with patch.object(service_module.InternalChatService, "get_group_conversation", new_callable=AsyncMock) as mock_get, \
+         patch.object(service_module.InternalChatService, "delete_group_conversation", new_callable=AsyncMock) as mock_delete, \
+         patch("shared.kafka_producer.KafkaProducerPool.send_message", new_callable=AsyncMock) as mock_send:
+        
+        mock_get.return_value = mock_group
+        mock_delete.return_value = True
+        
+        response = test_client.delete("/api/internal-chats/groups/group_123")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["success"] is True
+        mock_delete.assert_called_once_with("group_123")
+        mock_send.assert_called_once()
+

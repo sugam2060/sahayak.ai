@@ -153,3 +153,23 @@ export const useRespondCustomerRequest = () => {
     },
   });
 };
+
+export const useDeleteGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      const response = await fetch(`${API_BASE_URL}/api/internal-chats/groups/${groupId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to delete group.');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['internal-groups'] });
+    },
+  });
+};

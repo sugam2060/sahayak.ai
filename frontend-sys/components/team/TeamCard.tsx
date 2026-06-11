@@ -111,7 +111,7 @@ export const TeamCard = ({
                   connectors: 'Integration Connectors',
                   ai_config: 'AI Bot Config',
                   chats: 'Inbox Chat & Live Assist',
-                  teams: 'Team Management',
+                  teams: 'Team & Group Management',
                 };
                 return (
                   <span

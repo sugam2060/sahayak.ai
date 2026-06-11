@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useInternalMembers, useDirectHistory, useRespondCustomerRequest } from '@/services/api/internal-chats';
+import { usePresenceStore } from '@/store/presenceStore';
+import { useUnreadStore } from '@/store/unreadStore';
 import { useChats, useRespondHandoff } from '@/services/api/chats';
 import { ChatPane } from './ChatPane';
 import { InternalMessage, InternalMember } from '@/types/internal-chat';
@@ -12,11 +14,26 @@ import { toast } from 'sonner';
 interface DirectTabProps {
   currentUserId: string;
   onSendMessage: (recipientId: string, text: string, msgType?: 'text' | 'customer_chat_request', customerReqData?: unknown) => void;
+  isActive: boolean;
 }
 
-export const DirectTab: React.FC<DirectTabProps> = ({ currentUserId, onSendMessage }) => {
+export const DirectTab: React.FC<DirectTabProps> = ({ currentUserId, onSendMessage, isActive }) => {
   const [selectedMember, setSelectedMember] = useState<InternalMember | null>(null);
   const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const statuses = usePresenceStore((state) => state.statuses);
+  const unreadCounts = useUnreadStore((state) => state.unreadCounts);
+  const setActiveKey = useUnreadStore((state) => state.setActiveKey);
+
+  useEffect(() => {
+    if (isActive && selectedMember) {
+      setActiveKey(selectedMember.user_id);
+    } else {
+      setActiveKey(null);
+    }
+    return () => {
+      setActiveKey(null);
+    };
+  }, [isActive, selectedMember, setActiveKey]);
 
   // Queries
   const { data: membersData, isLoading: loadingMembers } = useInternalMembers();
@@ -253,23 +270,44 @@ export const DirectTab: React.FC<DirectTabProps> = ({ currentUserId, onSendMessa
         ) : (membersData?.members || []).length === 0 ? (
           <div className="text-xs text-zinc-400 py-4 text-center">No other members online.</div>
         ) : (
-          (membersData?.members || []).map((m) => (
-            <button
-              key={m.user_id}
-              onClick={() => setSelectedMember(m)}
-              className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-all border cursor-pointer ${
-                selectedMember?.user_id === m.user_id
-                  ? 'bg-zinc-100 dark:bg-zinc-900/50 border-zinc-200/60 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium'
-                  : 'bg-transparent border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-900/20 text-zinc-600 dark:text-zinc-400'
-              }`}
-            >
-              <div className="flex flex-col min-w-0 pr-1">
-                <span className="font-semibold truncate">{m.full_name}</span>
-                <span className="text-[10px] text-zinc-400 capitalize truncate">{m.role.toLowerCase()}</span>
-              </div>
-              <ChevronRight size={14} className="text-zinc-400" />
-            </button>
-          ))
+          (membersData?.members || []).map((m) => {
+            const status = statuses[m.user_id] || 'offline';
+            return (
+              <button
+                key={m.user_id}
+                onClick={() => setSelectedMember(m)}
+                className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-all border cursor-pointer ${
+                  selectedMember?.user_id === m.user_id
+                    ? 'bg-zinc-100 dark:bg-zinc-900/50 border-zinc-200/60 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium'
+                    : 'bg-transparent border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-900/20 text-zinc-600 dark:text-zinc-400'
+                }`}
+              >
+                <div className="flex flex-col min-w-0 pr-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      status === 'online'
+                        ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+                        : status === 'away'
+                        ? 'bg-amber-500 shadow-sm shadow-amber-500/50'
+                        : status === 'busy'
+                        ? 'bg-rose-500 shadow-sm shadow-rose-500/50'
+                        : 'bg-zinc-300 dark:bg-zinc-700'
+                    }`} />
+                    <span className="font-semibold truncate">{m.full_name}</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 capitalize truncate">{m.role.toLowerCase()}</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+                  {unreadCounts[m.user_id] > 0 && (
+                    <span className="min-w-4 h-4 px-1 bg-[#7C63D4] text-white text-[9px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
+                      {unreadCounts[m.user_id]}
+                    </span>
+                  )}
+                  <ChevronRight size={14} className="text-zinc-400" />
+                </div>
+              </button>
+            );
+          })
         )}
       </div>
 

@@ -18,6 +18,7 @@ import { ProductShareModal } from './ProductShareModal';
 import { CreateOrderModal } from './CreateOrderModal';
 import { CreateTicketModal } from './CreateTicketModal';
 import ReactMarkdown from 'react-markdown';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const EmojiPicker = dynamic(
   () => import('emoji-picker-react').then((mod) => mod.default),
@@ -75,6 +76,51 @@ const parseDate = (dateStr: string) => {
   return new Date(hasTimezone ? dateStr : `${dateStr}Z`);
 };
 
+const getAiEventLabel = (eventName: string): string => {
+  const mapping: Record<string, string> = {
+    // Graph nodes:
+    thinking: '🧠 Thinking...',
+    generating_product_card: '🖼️ Generating Product Card',
+    finalizing_response: '✨ Finalizing Response',
+    aborted: '⛔ AI Processing Aborted',
+    // Order tools:
+    place_order: '📦 Placing Order',
+    get_order_details: '📋 Fetching Order Details',
+    list_customer_orders: '📜 Listing Orders',
+    update_order_status: '🔄 Updating Order',
+    cancel_order: '❌ Cancelling Order',
+    // Product tools:
+    search_products: '🔍 Searching Products',
+    get_product_detail: '📦 Fetching Product Details',
+    check_stock: '📊 Checking Stock',
+    // Ticket tools:
+    create_support_ticket: '🎫 Creating Ticket',
+    get_ticket_detail: '🎫 Fetching Ticket',
+    list_tickets: '📋 Listing Tickets',
+    update_ticket: '🔄 Updating Ticket',
+    // RAG tools:
+    search_knowledge_base: '📚 Searching Knowledge',
+    // Handoff tools:
+    handoff_to_human: '🤝 Handing Off to Agent',
+    check_agent_availability: '👤 Checking Agent Availability',
+    // Payment tools:
+    send_payment_link: '💳 Sending Payment Link',
+    get_payment_status: '💰 Checking Payment Status',
+    initiate_refund: '💸 Initiating Refund',
+    get_refund_status: '🔄 Checking Refund Status',
+  };
+
+  if (mapping[eventName]) {
+    return mapping[eventName];
+  }
+
+  // Fallback: convert snake_case to Title Case (e.g. some_new_tool -> Some New Tool)
+  return eventName
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   const { data, isLoading, error } = useChatHistory(
     selectedChat?.platform,
@@ -99,6 +145,40 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
   const isLockedByMe = botId === user?.user_id;
 
   const isInputDisabled = !chat || isLoading || !!error || isLockedByOther || isLockedByAI;
+
+  const [aiEvent, setAiEvent] = useState<{ event: string; status: string } | null>(null);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAiEvent(null), 0);
+    return () => clearTimeout(timer);
+  }, [selectedChat]);
+
+  useEffect(() => {
+    let delayTimer: NodeJS.Timeout | null = null;
+    const timer = setTimeout(() => {
+      if (chat?.ai_event) {
+        const { event, status } = chat.ai_event;
+        if (status === 'started' || event === 'aborted') {
+          setAiEvent({ event, status });
+        } else if (status === 'completed') {
+          setAiEvent({ event, status });
+          delayTimer = setTimeout(() => {
+            setAiEvent(null);
+          }, 2000);
+        }
+      } else {
+        setAiEvent(null);
+      }
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      if (delayTimer) {
+        clearTimeout(delayTimer);
+      }
+    };
+  }, [chat?.ai_event]);
 
   const handleClaimLock = async () => {
     if (!selectedChat || !user) return;
@@ -523,7 +603,8 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
                           <img
                             src={msg.image_url}
                             alt="Attached media"
-                            className="w-full h-auto object-contain max-h-[300px]"
+                            className="w-full h-auto object-contain max-h-[300px] cursor-zoom-in hover:opacity-95 transition-opacity"
+                            onClick={() => setZoomImageUrl(msg.image_url || null)}
                           />
                         );
                       })()}
@@ -615,6 +696,16 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
               <span>You are handling this conversation.</span>
             </div>
+          </div>
+        )}
+
+        {aiEvent && (
+          <div className="flex items-center gap-3 py-1 px-2 select-none animate-pulse">
+            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-indigo-200 to-indigo-300"></div>
+            <span className="text-xs font-semibold text-indigo-600 bg-indigo-50/50 px-3 py-1 rounded-full border border-indigo-100/40 shadow-sm tracking-wide">
+              {getAiEventLabel(aiEvent.event)}
+            </span>
+            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-indigo-200 to-indigo-300"></div>
           </div>
         )}
 
@@ -792,6 +883,21 @@ export const ChatWindow = ({ selectedChat, onMenuClick }: ChatWindowProps) => {
         selectedChat={selectedChat}
         customerName={data?.chat?.user?.sender_name}
       />
+
+      {/* Zoom Image Dialog */}
+      <Dialog open={!!zoomImageUrl} onOpenChange={(open) => !open && setZoomImageUrl(null)}>
+        <DialogContent className="max-w-4xl p-1 bg-slate-950/95 border-none flex items-center justify-center overflow-hidden rounded-2xl">
+          <DialogTitle className="sr-only">Zoomed Image View</DialogTitle>
+          <DialogDescription className="sr-only">Detailed view of the shared image attachment.</DialogDescription>
+          {zoomImageUrl && (
+            <img
+              src={zoomImageUrl}
+              alt="Zoomed media"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-800/40"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Hidden Card Template for SVG-to-PNG conversion */}
       {selectedProductForCard && (

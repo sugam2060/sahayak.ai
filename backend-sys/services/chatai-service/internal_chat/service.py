@@ -155,3 +155,13 @@ class InternalChatService:
                 doc["_id"] = str(doc["_id"])
             return doc
         return None
+
+    async def delete_group_conversation(self, group_id: str) -> bool:
+        """
+        Deletes a group conversation by group_id.
+        """
+        result = await self.db.internal_conversations.delete_one({
+            "_id": str(group_id),
+            "type": "group"
+        })
+        return result.deleted_count > 0

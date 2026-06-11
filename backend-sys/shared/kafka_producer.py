@@ -1,9 +1,24 @@
 import json
 import logging
+from datetime import datetime
+from bson import ObjectId
 from aiokafka import AIOKafkaProducer
 from shared.config import KAFKA_BOOTSTRAP_SERVERS, KAFKA_SECURITY_PROTOCOL, AWS_REGION
 
 logger = logging.getLogger(__name__)
+
+
+class KafkaJSONEncoder(json.JSONEncoder):
+    """
+    JSON encoder that converts datetime and ObjectId to serializable strings.
+    """
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        return super().default(obj)
+
 
 def msk_oauth_callback(oauth_bearer_config):
     """
@@ -12,6 +27,7 @@ def msk_oauth_callback(oauth_bearer_config):
     from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
     token, _ = MSKAuthTokenProvider.generate_auth_token(AWS_REGION)
     return token
+
 
 class KafkaProducerPool:
     _producer = None
@@ -27,7 +43,7 @@ class KafkaProducerPool:
             
             kwargs = {
                 "bootstrap_servers": bootstrap_servers,
-                "value_serializer": lambda v: json.dumps(v).encode("utf-8")
+                "value_serializer": lambda v: json.dumps(v, cls=KafkaJSONEncoder).encode("utf-8")
             }
             
             if KAFKA_SECURITY_PROTOCOL == "SASL_SSL":

@@ -118,7 +118,7 @@ async def list_groups(
 @router.post("/groups")
 async def create_group(
     req: CreateGroupRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(check_permission("teams"))
 ):
     """Create a new team-scoped group chat."""
     org_id = current_user["organization_id"]
@@ -157,6 +157,36 @@ async def group_history(
         raise HTTPException(status_code=403, detail="You are not a member of this group.")
         
     return {"success": True, "conversation": convo}
+
+@router.delete("/groups/{group_id}")
+async def delete_group(
+    group_id: str,
+    current_user: dict = Depends(check_permission("teams"))
+):
+    """Delete a group chat (admin-only)."""
+    convo = await db_service.get_group_conversation(group_id)
+    if not convo:
+        raise HTTPException(status_code=404, detail="Group conversation not found.")
+        
+    # Enforce admin rights
+    if current_user["user_id"] not in convo.get("group_admin_ids", []):
+        raise HTTPException(status_code=403, detail="Only group admins can delete this group.")
+        
+    success = await db_service.delete_group_conversation(group_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete the group.")
+        
+    # Notify connected members via WebSocket
+    ws_payload = {
+        "org_id": current_user["organization_id"],
+        "type": "group",
+        "convo_id": group_id,
+        "user_ids": convo["user_ids"],
+        "event_type": "group_deleted",
+        "conversation": convo
+    }
+    await KafkaProducerPool.send_message("internal_chat_websocket", ws_payload)
+    return {"success": True}
 
 @router.post("/groups/{group_id}/members")
 async def manage_group_members(

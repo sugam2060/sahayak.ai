@@ -11,33 +11,63 @@ from langgraph.prebuilt import InjectedState
 logger = logging.getLogger("chatai_service.ai.tools.products.generate_product_card")
 
 SVG_TEMPLATE = """
-<svg width="800" height="1100">
+<svg width="1000" height="1500">
   <!-- Background rect -->
-  <rect x="0" y="0" width="800" height="1100" rx="24" fill="#FFFFFF" stroke="#F1F5F9" stroke_width="2"/>
+  <rect x="0" y="0" width="1000" height="1500" rx="30" fill="#FFFFFF" stroke="#F1F5F9" stroke_width="3"/>
   
   <!-- Image -->
-  <image href="{{ image_url }}" x="0" y="0" width="800" height="750"/>
+  <image href="{{ image_url }}" x="0" y="0" width="1000" height="900"/>
   
   <!-- Title -->
-  <text x="40" y="810" fill="#0F172A" font_size="36" font_weight="bold">{{ name }}</text>
+  <text x="50" y="960" fill="#0F172A" font_size="44" font_weight="bold">{{ name }}</text>
   
   <!-- Description -->
-  <text x="40" y="870" fill="#64748B" font_size="20" font_weight="normal">{{ description }}</text>
+  <text x="50" y="1080" fill="#64748B" font_size="28" font_weight="normal">{{ description }}</text>
   
   <!-- Price -->
-  <text x="40" y="1030" fill="#4F46E5" font_size="48" font_weight="black">{{ price }}</text>
+  <text x="50" y="1410" fill="#4F46E5" font_size="52" font_weight="black">{{ price }}</text>
   
   <!-- Badge -->
-  <rect x="600" y="990" width="160" height="50" rx="12" fill="#EEF2FF" stroke="#E0E7FF" stroke_width="1"/>
-  <text x="620" y="1022" fill="#4F46E5" font_size="16" font_weight="bold">Quick Details</text>
+  <rect x="730" y="1360" width="220" height="60" rx="15" fill="#EEF2FF" stroke="#E0E7FF" stroke_width="1.5"/>
+  <text x="760" y="1398" fill="#4F46E5" font_size="20" font_weight="bold">Quick Details</text>
 </svg>
 """
+
+
+def wrap_text(text, font, max_width):
+    """Accurately wrap text based on font size measurements."""
+    words = text.split()
+    lines = []
+    current_line = []
+    for word in words:
+        current_line.append(word)
+        line_str = " ".join(current_line)
+        try:
+            bbox = font.getbbox(line_str)
+            w = bbox[2] - bbox[0]
+        except AttributeError:
+            try:
+                w = font.getsize(line_str)[0]
+            except AttributeError:
+                w = len(line_str) * (font.size // 2 if hasattr(font, "size") else 9)
+        
+        if w > max_width:
+            current_line.pop()
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+    if current_line:
+        lines.append(" ".join(current_line))
+    return lines
 
 
 def _draw_pillow_card(product) -> bytes:
     """Render a card using Jinja2 SVG template and Pillow."""
     # Format price
-    formatted_price = f"{product.price / 100:.2f} {product.currency}"
+    try:
+        formatted_price = f"{int(product.price):,} {product.currency}"
+    except Exception:
+        formatted_price = f"{product.price} {product.currency}"
     
     # Render template via Jinja2
     template = Template(SVG_TEMPLATE)
@@ -52,8 +82,8 @@ def _draw_pillow_card(product) -> bytes:
     root = ET.fromstring(svg_content)
     
     # Get overall size
-    width = int(root.attrib.get("width", 800))
-    height = int(root.attrib.get("height", 1100))
+    width = int(root.attrib.get("width", 1000))
+    height = int(root.attrib.get("height", 1500))
     
     # Create Pillow image
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -65,10 +95,14 @@ def _draw_pillow_card(product) -> bytes:
         key = (size, bold)
         if key not in fonts:
             try:
-                font_path = "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf"
-                fonts[key] = ImageFont.truetype(font_path, size)
+                font_name = "arialbd.ttf" if bold else "arial.ttf"
+                fonts[key] = ImageFont.truetype(font_name, size)
             except Exception:
-                fonts[key] = ImageFont.load_default()
+                try:
+                    font_path = "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf"
+                    fonts[key] = ImageFont.truetype(font_path, size)
+                except Exception:
+                    fonts[key] = ImageFont.load_default()
         return fonts[key]
 
     for elem in root:
@@ -81,12 +115,12 @@ def _draw_pillow_card(product) -> bytes:
             rx = int(elem.attrib.get("rx", 0))
             fill = elem.attrib.get("fill", "#FFFFFF")
             stroke = elem.attrib.get("stroke", None)
-            stroke_width = int(elem.attrib.get("stroke_width", 1))
+            stroke_width = float(elem.attrib.get("stroke_width", 1))
             
             if rx > 0:
-                draw.rounded_rectangle([x, y, x + w, y + h], radius=rx, fill=fill, outline=stroke, width=stroke_width)
+                draw.rounded_rectangle([x, y, x + w, y + h], radius=rx, fill=fill, outline=stroke, width=int(stroke_width))
             else:
-                draw.rectangle([x, y, x + w, y + h], fill=fill, outline=stroke, width=stroke_width)
+                draw.rectangle([x, y, x + w, y + h], fill=fill, outline=stroke, width=int(stroke_width))
                 
         elif tag == "image":
             href = elem.attrib.get("href", "")
@@ -123,24 +157,17 @@ def _draw_pillow_card(product) -> bytes:
             bold = font_weight in ("bold", "black")
             font = get_font(font_size, bold)
             
-            if text_content and font_size == 20:  # Wrap description
-                words = text_content.split()
-                lines = []
-                current_line = []
-                for word in words:
-                    current_line.append(word)
-                    line_str = " ".join(current_line)
-                    if len(line_str) * 9 > 700:
-                        current_line.pop()
-                        lines.append(" ".join(current_line))
-                        current_line = [word]
-                if current_line:
-                    lines.append(" ".join(current_line))
-                
+            max_width = width - x - 50 # 50px right margin
+            is_badge = "Quick Details" in text_content or font_size < 22
+            
+            if not is_badge and max_width > 100:
+                lines = wrap_text(text_content, font, max_width)
                 curr_y = y
-                for line in lines[:3]:
+                line_height = font_size + int(font_size * 0.3)
+                max_lines = 6 if font_size <= 28 else 2
+                for line in lines[:max_lines]:
                     draw.text((x, curr_y), line, fill=fill, font=font)
-                    curr_y += 30
+                    curr_y += line_height
             else:
                 draw.text((x, y), text_content, fill=fill, font=font)
                 

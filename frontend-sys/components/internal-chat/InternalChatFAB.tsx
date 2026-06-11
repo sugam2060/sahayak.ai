@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { InternalChatDialog } from './InternalChatDialog';
 import { toast } from 'sonner';
+import { useUnreadStore } from '@/store/unreadStore';
 
 export const InternalChatFAB: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -14,6 +15,14 @@ export const InternalChatFAB: React.FC = () => {
   
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  
+  const incrementUnread = useUnreadStore((state) => state.increment);
+  const totalUnread = useUnreadStore((state) => state.getTotalUnread());
+  const setIsDialogOpen = useUnreadStore((state) => state.setIsDialogOpen);
+
+  useEffect(() => {
+    setIsDialogOpen(open);
+  }, [open, setIsDialogOpen]);
   
   const socketRef = useRef<WebSocket | null>(null);
   const queryClient = useQueryClient();
@@ -68,6 +77,21 @@ export const InternalChatFAB: React.FC = () => {
             });
           }
 
+          // Increment unread store!
+          if (!isMsgFromMe) {
+            let key = '';
+            if (type === 'direct') {
+              key = String(data.message.sender_id);
+            } else if (type === 'group') {
+              key = convo_id;
+            } else if (type === 'org') {
+              key = 'org';
+            }
+            if (key) {
+              incrementUnread(key);
+            }
+          }
+
           // Invalidate tanstack caches for real-time update
           if (type === 'direct') {
             const targetUserId = user_ids.find((id: string) => String(id) !== String(user.user_id));
@@ -86,6 +110,14 @@ export const InternalChatFAB: React.FC = () => {
           }
         } 
         
+        else if (event_type === 'group_deleted') {
+          queryClient.invalidateQueries({ queryKey: ['internal-groups'] });
+          queryClient.invalidateQueries({ queryKey: ['internal-group-history', convo_id] });
+          if (!open && user_ids.includes(user.user_id)) {
+            toast.info(`Group "${data.conversation.group_name}" has been deleted.`);
+          }
+        }
+
         else if (event_type === 'group_members_updated') {
           queryClient.invalidateQueries({ queryKey: ['internal-group-history', convo_id] });
           queryClient.invalidateQueries({ queryKey: ['internal-groups'] });
@@ -106,6 +138,23 @@ export const InternalChatFAB: React.FC = () => {
           }
         } 
         
+        else if (event_type === 'handoff_status_updated') {
+          const targetUserId = user_ids.find((id: string) => String(id) !== String(user.user_id));
+          queryClient.invalidateQueries({ queryKey: ['internal-direct-history', targetUserId] });
+          
+          // Invalidate customer locks and active chats in main inbox
+          queryClient.invalidateQueries({ queryKey: ['chats'] });
+          queryClient.invalidateQueries({ queryKey: ['chat-history'] });
+          
+          if (data.status === 'granted') {
+            toast.success('Handoff request was accepted.');
+          } else if (data.status === 'declined') {
+            toast.error('Handoff request was declined.');
+          } else if (data.status === 'expired') {
+            toast.info('Handoff request expired.');
+          }
+        } 
+        
         else if (data.type === 'error') {
           toast.error(data.message || 'An error occurred.');
         }
@@ -122,7 +171,7 @@ export const InternalChatFAB: React.FC = () => {
       socket.close();
       socketRef.current = null;
     };
-  }, [isAuthenticated, user?.organization_id, user?.user_id, queryClient, open]);
+  }, [isAuthenticated, user?.organization_id, user?.user_id, queryClient, open, incrementUnread]);
 
   const handleSendWSMessage = (
     convoId: string,
@@ -166,6 +215,11 @@ export const InternalChatFAB: React.FC = () => {
         title="Workspace Chat"
       >
         <MessageSquareCode size={20} className="animate-pulse" />
+        {totalUnread > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-950 animate-bounce">
+            {totalUnread}
+          </span>
+        )}
       </button>
 
       {/* Internal Workspace Dialog */}

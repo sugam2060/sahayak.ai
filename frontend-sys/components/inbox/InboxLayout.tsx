@@ -236,6 +236,21 @@ const InboxLayout = () => {
               chats: chatsList
             };
           });
+        } else if (data.type === 'ai_event') {
+          const { platform, sender_id, event: eventName, status } = data;
+          if (!platform || !sender_id) return;
+          const sender_id_str = String(sender_id);
+
+          queryClient.setQueryData(['chat-history', platform, sender_id_str], (oldData: any) => {
+            if (!oldData || !oldData.chat) return oldData;
+            return {
+              ...oldData,
+              chat: {
+                ...oldData.chat,
+                ai_event: { event: eventName, status }
+              }
+            };
+          });
         } else if (data.type === 'chat_read_update') {
           const { platform, sender_id } = data;
           const sender_id_str = String(sender_id);

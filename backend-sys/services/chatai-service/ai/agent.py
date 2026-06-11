@@ -20,6 +20,7 @@ from uuid import UUID
 from .llm import LLMProvider
 from .graph import build_agent_graph
 from .tools import get_all_tools
+from .event_emitter import AIEventEmitter
 
 logger = logging.getLogger("chatai_service.ai.agent")
 
@@ -206,8 +207,50 @@ async def run_agent(
             "image_urls": [] # Reset image URLs for this run
         }
         
-        # Invoke agent graph
-        result = await graph.ainvoke(initial_state, config=config)
+        # Emit processing started event
+        await AIEventEmitter.emit(
+            org_id=org_id,
+            platform=platform,
+            sender_id=sender_id,
+            event="processing",
+            status="started"
+        )
+
+        aborted = False
+        async for _ in graph.astream(initial_state, config=config):
+            # Check MongoDB for conversation to see if AI auto reply was turned off mid-run
+            conv_status = await mongo_db.conversations.find_one({
+                "platform": platform,
+                "user.sender_id": query_id
+            }, projection={"ai_assigned": 1})
+            
+            if conv_status and not conv_status.get("ai_assigned", False):
+                aborted = True
+                logger.info(f"AI auto reply disabled mid-processing for {platform}:{sender_id}. Aborting.")
+                break
+
+        if aborted:
+            await AIEventEmitter.emit(
+                org_id=org_id,
+                platform=platform,
+                sender_id=sender_id,
+                event="aborted",
+                status="completed"
+            )
+            return None
+
+        # Fetch the final state after stream finishes
+        final_state_snapshot = await graph.aget_state(config)
+        result = final_state_snapshot.values or {}
+
+        # Emit processing completed event
+        await AIEventEmitter.emit(
+            org_id=org_id,
+            platform=platform,
+            sender_id=sender_id,
+            event="processing",
+            status="completed"
+        )
         
         # Extract response text and image URLs
         response_text = _extract_final_response(result)

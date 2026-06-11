@@ -30,6 +30,7 @@ export interface Conversation {
   handoff_pending?: boolean;
   created_at: string;
   updated_at: string;
+  ai_event?: { event: string; status: string };
 }
 
 export interface SendReplyRequest {

@@ -1,1 +1,15 @@
 .venv
+.git
+.gitignore
+.dockerignore
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+db.sqlite3
+.env
+.coverage
+htmlcov/
+deployment/

@@ -15,6 +15,7 @@ from .grpc_client import WorkersGRPCClient
 from shared.utils import upload_cloudinary_image_bytes
 from .state import AgentState
 from .tools.products.generate_product_card import _draw_pillow_card
+from .event_emitter import AIEventEmitter
 
 logger = logging.getLogger("chatai_service.ai.graph")
 
@@ -61,6 +62,13 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         Before calling the LLM, we rebuild the SystemMessage with CRM context and summary,
         ensuring it is updated each turn.
         """
+        await AIEventEmitter.emit(
+            org_id=state["organization_id"],
+            platform=state["platform"],
+            sender_id=state["sender_id"],
+            event="thinking",
+            status="started"
+        )
         messages = state["messages"]
         thread_id = f"{state.get('platform')}+{state.get('chat_id')}+{state.get('sender_id')}"
         logger.info(f"[Node Trigger] 'chat' node entered for thread={thread_id}. Message count: {len(messages)}")
@@ -88,6 +96,13 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         # (add_messages will overwrite the system message since it has id="system")
         response = await llm_with_tools.ainvoke([system_msg] + [m for m in messages if getattr(m, "id", None) != "system"])
         
+        await AIEventEmitter.emit(
+            org_id=state["organization_id"],
+            platform=state["platform"],
+            sender_id=state["sender_id"],
+            event="thinking",
+            status="completed"
+        )
         return {"messages": [system_msg, response]}
     
     async def generate_product_card_node(state: AgentState) -> dict:
@@ -95,6 +110,13 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         Generate visual product card PNGs using Pillow, upload them to Cloudinary,
         and append the URLs to state.
         """
+        await AIEventEmitter.emit(
+            org_id=state["organization_id"],
+            platform=state["platform"],
+            sender_id=state["sender_id"],
+            event="generating_product_card",
+            status="started"
+        )
         messages = state["messages"]
         last_message = messages[-1]
         
@@ -111,6 +133,13 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         
         if not product_ids or not tool_call_id:
             logger.warning("generate_product_card called but no product_ids or tool_call_id found.")
+            await AIEventEmitter.emit(
+                org_id=state["organization_id"],
+                platform=state["platform"],
+                sender_id=state["sender_id"],
+                event="generating_product_card",
+                status="completed"
+            )
             return {}
             
         logger.info(f"[Node Trigger] 'generate_product_card' for products: {product_ids}")
@@ -156,6 +185,13 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         ai_reply = AIMessage(
             content=f"Here is the product card for the requested product(s):"
         )
+        await AIEventEmitter.emit(
+            org_id=state["organization_id"],
+            platform=state["platform"],
+            sender_id=state["sender_id"],
+            event="generating_product_card",
+            status="completed"
+        )
         return {
             "messages": [tool_msg, ai_reply],
             "image_urls": image_urls
@@ -167,7 +203,31 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
     async def logging_tool_node(state: AgentState) -> dict:
         """Wrapper for standard ToolNode execution to log completion."""
         logger.info("[Node Trigger] 'tools' node entered.")
+        messages = state["messages"]
+        last_message = messages[-1]
+        tool_names = []
+        if isinstance(last_message, AIMessage) and last_message.tool_calls:
+            tool_names = [tc["name"] for tc in last_message.tool_calls]
+            
+        for t_name in tool_names:
+            await AIEventEmitter.emit(
+                org_id=state["organization_id"],
+                platform=state["platform"],
+                sender_id=state["sender_id"],
+                event=t_name,
+                status="started"
+            )
+            
         result = await tool_node_prebuilt.ainvoke(state)
+        
+        for t_name in tool_names:
+            await AIEventEmitter.emit(
+                org_id=state["organization_id"],
+                platform=state["platform"],
+                sender_id=state["sender_id"],
+                event=t_name,
+                status="completed"
+            )
         return result
         
     async def synthesizer_node(state: AgentState) -> dict:
@@ -175,8 +235,20 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
         Cleans the final response text, stripping markdown tags for clean plain-text channels.
         """
         logger.info("[Node Trigger] 'synthesizer' node entered.")
-        # Synthesizer is final, so it doesn't need to return new messages,
-        # but we can optionally log the end state.
+        await AIEventEmitter.emit(
+            org_id=state["organization_id"],
+            platform=state["platform"],
+            sender_id=state["sender_id"],
+            event="finalizing_response",
+            status="started"
+        )
+        await AIEventEmitter.emit(
+            org_id=state["organization_id"],
+            platform=state["platform"],
+            sender_id=state["sender_id"],
+            event="finalizing_response",
+            status="completed"
+        )
         return {}
         
     # Build the graph

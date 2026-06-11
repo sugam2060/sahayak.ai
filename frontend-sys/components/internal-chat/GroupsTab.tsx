@@ -1,20 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useGroupChats, useGroupHistory, useCreateGroup, useManageGroupMembers, useInternalMembers } from '@/services/api/internal-chats';
+import React, { useState, useEffect } from 'react';
+import { useGroupChats, useGroupHistory, useCreateGroup, useManageGroupMembers, useInternalMembers, useDeleteGroup } from '@/services/api/internal-chats';
 import { ChatPane } from './ChatPane';
 import { InternalConversation } from '@/types/internal-chat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronRight, Users, Plus, X, ShieldAlert, Check } from 'lucide-react';
+import { ChevronRight, Users, Plus, X, ShieldAlert, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePresenceStore } from '@/store/presenceStore';
+import { useAuthStore } from '@/store/authStore';
+import { useUnreadStore } from '@/store/unreadStore';
 
 interface GroupsTabProps {
   currentUserId: string;
   onSendMessage: (groupId: string, text: string) => void;
+  isActive: boolean;
 }
 
-export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessage }) => {
+export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessage, isActive }) => {
   const [selectedGroup, setSelectedGroup] = useState<InternalConversation | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -26,9 +30,51 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
   const { data: historyData, isLoading: loadingHistory } = useGroupHistory(selectedGroup?._id || null);
   const { data: membersData } = useInternalMembers();
 
+  // Presence and Auth
+  const statuses = usePresenceStore((state) => state.statuses);
+  const currentUser = useAuthStore((state) => state.user);
+  const unreadCounts = useUnreadStore((state) => state.unreadCounts);
+  const setActiveKey = useUnreadStore((state) => state.setActiveKey);
+
+  useEffect(() => {
+    if (isActive && selectedGroup) {
+      setActiveKey(selectedGroup._id);
+    } else {
+      setActiveKey(null);
+    }
+    return () => {
+      setActiveKey(null);
+    };
+  }, [isActive, selectedGroup, setActiveKey]);
+
   // Mutations
   const createMutation = useCreateGroup();
   const manageMembersMutation = useManageGroupMembers(selectedGroup?._id || '');
+  const deleteMutation = useDeleteGroup();
+
+  // Reset selected group if it was deleted
+  useEffect(() => {
+    if (selectedGroup && groupsData?.groups) {
+      const exists = groupsData.groups.some((g) => g._id === selectedGroup._id);
+      if (!exists) {
+        const timer = setTimeout(() => setSelectedGroup(null), 0);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [groupsData?.groups, selectedGroup]);
+
+  const handleDeleteGroup = async () => {
+    if (!selectedGroup) return;
+    if (window.confirm(`Are you sure you want to delete the group "${selectedGroup.group_name}"? This action cannot be undone.`)) {
+      try {
+        await deleteMutation.mutateAsync(selectedGroup._id);
+        toast.success('Group deleted successfully.');
+        setSelectedGroup(null);
+      } catch (err: unknown) {
+        toast.error((err as Error).message || 'Failed to delete group.');
+      }
+    }
+  };
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,8 +113,14 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
   };
 
   const isAdmin = selectedGroup?.group_admin_ids.includes(currentUserId);
+  const hasTeamsPermission = currentUser?.role?.toUpperCase() === 'OWNER' || (currentUser?.permissions || []).includes('teams');
   const allMembers = membersData?.members || [];
   const currentMembers = historyData?.conversation?.user_ids || [];
+
+  const groupMemberNames = [
+    ...(currentUser?.user_id && currentMembers.includes(currentUser.user_id) ? [currentUser.full_name || 'You'] : []),
+    ...allMembers.filter((m) => currentMembers.includes(m.user_id) && m.user_id !== currentUserId).map((m) => m.full_name)
+  ].join(', ');
 
   return (
     <div className="grid grid-cols-5 gap-4 h-[440px] pt-1">
@@ -78,17 +130,19 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
           <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
             Group Chats
           </h3>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => {
-              setShowCreateForm(!showCreateForm);
-              setSelectedGroup(null);
-            }}
-            className="h-5 w-5 rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-850 cursor-pointer"
-          >
-            <Plus size={12} />
-          </Button>
+          {hasTeamsPermission && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => {
+                setShowCreateForm(!showCreateForm);
+                setSelectedGroup(null);
+              }}
+              className="h-5 w-5 rounded-full text-zinc-500 hover:bg-zinc-100 hover:text-zinc-850 cursor-pointer"
+            >
+              <Plus size={12} />
+            </Button>
+          )}
         </div>
 
         {loadingGroups ? (
@@ -114,6 +168,7 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
               <div className="max-h-24 overflow-y-auto space-y-1 pr-1 border border-zinc-200/20 rounded-lg p-1.5 bg-white/50 dark:bg-zinc-950/20">
                 {allMembers.map((m) => {
                   const selected = selectedMemberIds.includes(m.user_id);
+                  const status = statuses[m.user_id] || 'offline';
                   return (
                     <button
                       key={m.user_id}
@@ -125,7 +180,18 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
                           : 'hover:bg-zinc-100 dark:hover:bg-zinc-900/50'
                       }`}
                     >
-                      <span className="font-medium">{m.full_name}</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          status === 'online'
+                            ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+                            : status === 'away'
+                            ? 'bg-amber-500 shadow-sm shadow-amber-500/50'
+                            : status === 'busy'
+                            ? 'bg-rose-500 shadow-sm shadow-rose-500/50'
+                            : 'bg-zinc-300 dark:bg-zinc-700'
+                        }`} />
+                        <span className="font-medium truncate">{m.full_name}</span>
+                      </div>
                       {selected && <Check size={10} />}
                     </button>
                   );
@@ -170,9 +236,21 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
                 <div className="w-6 h-6 rounded-lg bg-[#7C63D4]/10 text-primary flex items-center justify-center flex-shrink-0">
                   <Users size={12} />
                 </div>
-                <span className="font-semibold truncate">{g.group_name}</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-semibold truncate">{g.group_name}</span>
+                  <span className="text-[10px] text-zinc-400 truncate">
+                    {g.user_ids?.length || 0} members
+                  </span>
+                </div>
               </div>
-              <ChevronRight size={14} className="text-zinc-400" />
+              <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+                {unreadCounts[g._id] > 0 && (
+                  <span className="min-w-4 h-4 px-1 bg-[#7C63D4] text-white text-[9px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
+                    {unreadCounts[g._id]}
+                  </span>
+                )}
+                <ChevronRight size={14} className="text-zinc-400" />
+              </div>
             </button>
           ))
         )}
@@ -184,25 +262,40 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
           <div className="flex flex-col h-full min-w-0">
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-zinc-200/50 dark:border-zinc-800/50 mb-2">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 mr-2">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
                   {selectedGroup.group_name}
                 </h4>
-                <p className="text-[10px] text-zinc-400 truncate">
-                  {currentMembers.length} member{currentMembers.length !== 1 ? 's' : ''}
+                <p 
+                  className="text-[10px] text-zinc-400 truncate max-w-[280px]" 
+                  title={groupMemberNames || `${currentMembers.length} members`}
+                >
+                  {groupMemberNames ? `Members: ${groupMemberNames}` : `${currentMembers.length} member${currentMembers.length !== 1 ? 's' : ''}`}
                 </p>
               </div>
 
-              {isAdmin && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowManageMembers(!showManageMembers)}
-                  className="h-8 px-2.5 rounded-lg border-zinc-200 dark:border-zinc-800 text-xs gap-1 hover:bg-[#7C63D4]/10 hover:text-[#7C63D4] cursor-pointer"
-                >
-                  <Users size={12} />
-                  Manage Members
-                </Button>
+              {isAdmin && hasTeamsPermission && (
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowManageMembers(!showManageMembers)}
+                    className="h-8 px-2.5 rounded-lg border-zinc-200 dark:border-zinc-800 text-xs gap-1 hover:bg-[#7C63D4]/10 hover:text-[#7C63D4] cursor-pointer"
+                  >
+                    <Users size={12} />
+                    Manage
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDeleteGroup}
+                    disabled={deleteMutation.isPending}
+                    className="h-8 px-2.5 rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 dark:border-red-950/50 dark:hover:bg-red-950/20 text-xs gap-1 cursor-pointer"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -238,14 +331,26 @@ export const GroupsTab: React.FC<GroupsTabProps> = ({ currentUserId, onSendMessa
                       <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
                         {allMembers.map((m) => {
                           const isMember = currentMembers.includes(m.user_id);
+                          const status = statuses[m.user_id] || 'offline';
                           return (
                             <div
                               key={m.user_id}
                               className="flex items-center justify-between p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-900/30 text-[10px] border border-transparent"
                             >
-                              <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                                {m.full_name}
-                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                  status === 'online'
+                                    ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+                                    : status === 'away'
+                                    ? 'bg-amber-500 shadow-sm shadow-amber-500/50'
+                                    : status === 'busy'
+                                    ? 'bg-rose-500 shadow-sm shadow-rose-500/50'
+                                    : 'bg-zinc-300 dark:bg-zinc-700'
+                                }`} />
+                                <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                                  {m.full_name}
+                                </span>
+                              </div>
                               {isMember ? (
                                 <Button
                                   size="sm"
