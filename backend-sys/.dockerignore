@@ -13,3 +13,5 @@ db.sqlite3
 .coverage
 htmlcov/
 deployment/
+products
+products.json

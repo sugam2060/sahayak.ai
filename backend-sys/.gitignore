@@ -14,3 +14,7 @@ migrations
 
 deployment
 .agent
+
+
+products
+products.json
