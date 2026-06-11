@@ -29,7 +29,8 @@ def proto_to_product_dict(p):
         "is_active": p.is_active,
         "created_at": p.created_at,
         "updated_at": p.updated_at,
-        "metadata": meta_dict
+        "metadata": meta_dict,
+        "share_url": p.share_url if p.share_url else None
     }
 
 @router.get("")
@@ -104,6 +105,58 @@ async def get_product_detail(
         raise he
     except Exception as e:
         print(f"Error fetching product details via gRPC: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve product details."
+        )
+
+@router.get("/share/{token}")
+async def get_shared_product(
+    token: str,
+    request: Request
+):
+    try:
+        import grpc
+        from shared.utils import decrypt_token
+        from shared.config import JWT_SECRET
+        
+        try:
+            org_id, product_id = decrypt_token(token, JWT_SECRET)
+        except Exception as decrypt_err:
+            print(f"Decryption error for share token {token}: {str(decrypt_err)}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invalid shared product link."
+            )
+
+        grpc_req = service_pb2.GetProductDetailRequest(
+            organization_id=org_id,
+            product_id=product_id
+        )
+        res = await request.app.state.product_stub.GetProductDetail(grpc_req)
+        
+        if not res.success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found."
+            )
+
+        return {"success": True, "product": proto_to_product_dict(res.product)}
+    except HTTPException as he:
+        raise he
+    except grpc.RpcError as rpc_err:
+        if rpc_err.code() == grpc.StatusCode.NOT_FOUND:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found."
+            )
+        print(f"gRPC error during shared product fetching: {rpc_err.details()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve product details."
+        )
+    except Exception as e:
+        print(f"Error fetching shared product details: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve product details."

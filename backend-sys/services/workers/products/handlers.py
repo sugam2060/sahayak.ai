@@ -48,7 +48,8 @@ def to_product_info(product: Product) -> service_pb2.ProductInfo:
         is_active=product.is_active,
         created_at=product.created_at.isoformat() if product.created_at else "",
         updated_at=product.updated_at.isoformat() if product.updated_at else "",
-        metadata_json=metadata_str
+        metadata_json=metadata_str,
+        share_url=product.share_url or ""
     )
 
 from shared.utils import upload_cloudinary_image_bytes, delete_cloudinary_image_task
@@ -81,8 +82,24 @@ class ProductService(service_pb2_grpc.ProductServiceServicer):
                 except Exception:
                     pass
 
+            from uuid import uuid4
+            from shared.database.schema.organizations import Organization
+            from shared.utils import encrypt_token
+            from shared.config import JWT_SECRET, FRONTEND_URL
+
+            product_id = uuid4()
+
             async with SessionLocal() as db:
+                # Query organization slug
+                org_stmt = select(Organization.slug).where(Organization.id == org_id)
+                org_res = await db.execute(org_stmt)
+                org_slug = org_res.scalar() or "org"
+
+                token = encrypt_token(str(org_id), str(product_id), JWT_SECRET)
+                share_url = f"{FRONTEND_URL}/{org_slug}/{token}"
+
                 new_product = Product(
+                    id=product_id,
                     organization_id=org_id,
                     name=request.name,
                     description=request.description if request.description else None,
@@ -92,7 +109,8 @@ class ProductService(service_pb2_grpc.ProductServiceServicer):
                     sku=request.sku if request.sku else None,
                     image=image_url,
                     is_active=request.is_active,
-                    metadata_json=meta_json
+                    metadata_json=meta_json,
+                    share_url=share_url
                 )
                 db.add(new_product)
                 await db.commit()

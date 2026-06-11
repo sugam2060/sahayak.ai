@@ -693,7 +693,8 @@ async def share_products_endpoint(
                     "is_active": p.is_active,
                     "created_at": p.created_at,
                     "updated_at": p.updated_at,
-                    "metadata": meta_dict
+                    "metadata": meta_dict,
+                    "share_url": p.share_url if p.share_url else None
                 }
 
                 # Publish product card event

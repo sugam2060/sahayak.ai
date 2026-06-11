@@ -351,6 +351,8 @@ class InstagramPlatformHandler(BasePlatformHandler):
                     except Exception:
                         formatted_price = str(p.price)
                         
+                    share_url = getattr(p, "share_url", "") or ""
+
                     sent_successfully = False
                     if p.image:
                         # Construct native generic template payload
@@ -364,7 +366,7 @@ class InstagramPlatformHandler(BasePlatformHandler):
                                         "elements": [
                                             {
                                                 "title": p.name[:79],
-                                                "subtitle": f"{symbol}{formatted_price} · {p.description or ''}"[:79],
+                                                "subtitle": f"💰 {symbol}{formatted_price}",
                                                 "image_url": p.image
                                             }
                                         ]
@@ -372,6 +374,14 @@ class InstagramPlatformHandler(BasePlatformHandler):
                                 }
                             }
                         }
+                        if share_url:
+                            payload["message"]["attachment"]["payload"]["elements"][0]["buttons"] = [
+                                {
+                                    "type": "web_url",
+                                    "url": share_url,
+                                    "title": "View Details"
+                                }
+                            ]
                         logger.info(f"Sending native Instagram generic template product card to user {sender_id}...")
                         resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=8.0)
                         if resp.status_code == 200:
@@ -429,13 +439,24 @@ class InstagramPlatformHandler(BasePlatformHandler):
                             resp = await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=8.0)
                             if resp.status_code == 200:
                                 logger.debug("Successfully sent fallback card photo to Instagram.")
+                                
+                                # Send follow-up with URL link
+                                if share_url:
+                                    detail_payload = {
+                                        "recipient": {"id": sender_id},
+                                        "message": {"text": f"View Details: {share_url}"}
+                                    }
+                                    await client.post(instagram_endpoint, json=detail_payload, params={"access_token": bot_token}, timeout=5.0)
                             else:
                                 logger.error(f"Failed to send fallback photo to Instagram: {resp.status_code} - {resp.text}")
                         else:
                             # Final fallback: text only
+                            text_body = f"{p.name}\n💰 {symbol}{formatted_price}"
+                            if share_url:
+                                text_body += f"\n\nView Details: {share_url}"
                             payload = {
                                 "recipient": {"id": sender_id},
-                                "message": {"text": f"{p.name}\n💰 {symbol}{formatted_price}\n\n{p.description or ''}"}
+                                "message": {"text": text_body}
                             }
                             await client.post(instagram_endpoint, json=payload, params={"access_token": bot_token}, timeout=8.0)
 

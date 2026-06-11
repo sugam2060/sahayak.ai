@@ -81,7 +81,8 @@ async def create_product(
             "is_active": res.product.is_active,
             "created_at": res.product.created_at,
             "updated_at": res.product.updated_at,
-            "metadata": meta_dict
+            "metadata": meta_dict,
+            "share_url": res.product.share_url if res.product.share_url else None
         }
 
         return {"success": True, "product": product_dict}

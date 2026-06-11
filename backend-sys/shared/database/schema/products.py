@@ -31,6 +31,7 @@ class Product(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     
     metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    share_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"), onupdate=text("now()"))

@@ -302,25 +302,9 @@ class TelegramPlatformHandler(BasePlatformHandler):
                     except Exception:
                         formatted_price = str(p.price)
                         
-                    # Format caption
-                    caption_lines = [
-                        f"*{p.name}*",
-                        p.description or "No description provided.",
-                        f"💰 {symbol}{formatted_price}"
-                    ]
-                    
-                    # Include metadata (except keywords)
-                    if p.sku:
-                        caption_lines.append(f"SKU: `{p.sku}`")
-                    if p.metadata and isinstance(p.metadata, dict):
-                        meta_items = []
-                        for k, v in p.metadata.items():
-                            if k.lower() != "keywords" and v:
-                                meta_items.append(f"{k}: {v}")
-                        if meta_items:
-                            caption_lines.append("\n".join(meta_items))
-                            
-                    caption = "\n".join(caption_lines)
+                    # Format caption (minimal as requested)
+                    caption = f"*{p.name}*\n💰 {symbol}{formatted_price}"
+                    share_url = getattr(p, "share_url", "") or ""
                     
                     # Send photo using direct image URL first
                     sent_successfully = False
@@ -332,6 +316,12 @@ class TelegramPlatformHandler(BasePlatformHandler):
                             "caption": caption,
                             "parse_mode": "Markdown"
                         }
+                        if share_url:
+                            tg_payload["reply_markup"] = {
+                                "inline_keyboard": [
+                                    [{"text": "🔍 View Details", "url": share_url}]
+                                ]
+                            }
                         logger.info(f"Sending native Telegram product photo to chat {chat_id}...")
                         tg_response = await client.post(telegram_url, json=tg_payload, timeout=8.0)
                         if tg_response.status_code == 200:
@@ -389,6 +379,12 @@ class TelegramPlatformHandler(BasePlatformHandler):
                                 "caption": caption,
                                 "parse_mode": "Markdown"
                             }
+                            if share_url:
+                                tg_payload["reply_markup"] = {
+                                    "inline_keyboard": [
+                                        [{"text": "🔍 View Details", "url": share_url}]
+                                    ]
+                                }
                             tg_response = await client.post(telegram_url, json=tg_payload, timeout=8.0)
                             if tg_response.status_code == 200:
                                 logger.debug("Successfully sent fallback product card photo to Telegram.")
@@ -402,6 +398,12 @@ class TelegramPlatformHandler(BasePlatformHandler):
                                 "text": caption,
                                 "parse_mode": "Markdown"
                             }
+                            if share_url:
+                                tg_payload["reply_markup"] = {
+                                    "inline_keyboard": [
+                                        [{"text": "🔍 View Details", "url": share_url}]
+                                    ]
+                                }
                             await client.post(telegram_url, json=tg_payload, timeout=8.0)
 
                 elif image_url:

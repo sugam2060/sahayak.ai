@@ -179,7 +179,8 @@ def build_agent_graph(tools: list, llm, checkpointer=None):
                     "is_active": p.is_active,
                     "created_at": p.created_at,
                     "updated_at": p.updated_at,
-                    "metadata": meta_dict
+                    "metadata": meta_dict,
+                    "share_url": p.share_url if p.share_url else None
                 }
                 products.append(product_dict)
             except Exception as e:

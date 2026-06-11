@@ -141,6 +141,7 @@ message ProductInfo {
   string created_at = 11;
   string updated_at = 12;
   string metadata_json = 13;
+  string share_url = 14;
 }
 
 message CreateProductRequest {
