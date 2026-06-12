@@ -23,9 +23,12 @@ graph TD
     %% Gateway Dependencies
     Gateway -->|Sliding Window Rate Limiting| Redis[(Redis Caching & Sessions)]
     
-    %% gRPC Routing
+    %% Service Communications
     Gateway -->|gRPC: auth_service| Auth[Auth gRPC Service :50051]
-    Gateway -->|gRPC: chatai_service| ChatAI[ChatAI gRPC Service :50052]
+    Gateway -->|Publish Inbound Event| Kafka[Kafka Message Broker]
+    
+    %% ChatAI Service
+    Kafka -->|Consume Inbound Event| ChatAI[ChatAI Service]
 
     %% Databases
     Auth -->|SQLAlchemy AsyncPG| PG[(PostgreSQL Relational DB)]
@@ -34,11 +37,10 @@ graph TD
     %% AI Agent Flow
     ChatAI -->|MongoDB Saver Checkpointing| Mongo[(MongoDB Conversation Store)]
     ChatAI -->|Vector Search & Inference| Pinecone[(Pinecone Vector DB RAG)]
-    ChatAI -->|LLM Reasoning| LLM[LLM API / NVIDIA NVIDIA NIM]
+    ChatAI -->|LLM Reasoning| LLM[LLM API / NVIDIA NIM]
     ChatAI -->|gRPC: workers| Workers[Workers gRPC Service :50053]
     
     %% Background Workers & Kafka Messaging
-    Gateway -->|Inbound Queue Message| Kafka[Kafka Message Broker]
     Workers -->|Process Orders/Products| PG
     Workers -->|Produce Mail Events| Kafka
     Kafka -->|Consume Mail Events| MailWorker[Mail Service Kafka Worker]

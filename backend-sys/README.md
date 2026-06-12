@@ -13,7 +13,8 @@ graph TD
     Client[Client Browser / Next.js] -->|HTTPS Requests| Gateway[FastAPI API Gateway]
     Gateway -->|Sliding Window Rate Limiting| RedisPool[(Redis Cache & Session)]
     Gateway -->|Async gRPC| AuthService[gRPC Auth Service]
-    Gateway -->|Async gRPC| ChatService[gRPC ChatAI Service]
+    Gateway -->|Publish Inbound Event| Kafka[Kafka Message Broker]
+    Kafka -->|Consume Inbound Event| ChatService[ChatAI Service]
     AuthService -->|SQLAlchemy AsyncPG| DB[(PostgreSQL Database)]
     AuthService -->|Read/Write Session/Auth Cache| RedisPool
     AuthService -->|Celery Tasks| RedisBroker[(Redis Message Broker)]
@@ -27,7 +28,7 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | **API Gateway** | FastAPI | `localhost:8000` | Exposes unified REST endpoints, enforces CORS, validates client headers, manages rate-limiting, and translates requests into gRPC stubs. |
 | **Auth Service** | gRPC (Async) | `localhost:50051` | Manages registration, logins, token issuance/refresh, brute-force lockouts, and database audit logs. |
-| **ChatAI Service** | gRPC (Async) | `localhost:50052` | Stubs AI prompt parsing and hooks up database storage for conversation logs. |
+| **ChatAI Service** | Kafka Consumer Worker | Distributed | Consumes incoming platform events, handles conversation states, executes agentic reasoning via LangGraph, and maps DB actions. |
 | **Mail Worker** | Celery / `smtplib` | Distributed | Executes background asynchronous operations such as sending verification e-mails. |
 | **Cache & Sessions** | Redis | `localhost:6379/0` | Key-value store facilitating rate limits, cache-aside identity checks, and short-term verification tokens. |
 | **Relational Database** | PostgreSQL | `localhost:5432` | Stores schemas for users, organizations, orders, products, and system configurations. |
