@@ -6,7 +6,7 @@ from sqlalchemy import select, delete
 from uuid import UUID
 from shared.database.schema import Team, TeamMember, User, UserRole
 from services.api_gateway.routers.teams.schemas import InviteMemberRequest
-from services.auth_service.auth_utils import hash_password
+from shared.auth_utils import hash_password
 from shared.config import FRONTEND_URL
 from shared.kafka_producer import KafkaProducerPool
 from typing import List, Optional

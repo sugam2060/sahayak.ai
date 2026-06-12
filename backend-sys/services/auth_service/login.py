@@ -2,6 +2,7 @@ import uuid
 import redis.asyncio as redis
 import json
 from sqlalchemy import select
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from shared.database.engine import SessionLocal
 from shared.database.schema import User, RefreshToken, Organization
@@ -82,7 +83,13 @@ async def handle_login(request: service_pb2.LoginRequest):
                     # We need to re-fetch the user object to update it
                     stmt = select(User).where(User.id == uuid.UUID(user_data["id"]))
                     res = await session.execute(stmt)
-                    user = res.scalar_one()
+                    try:
+                        user = res.scalar_one()
+                    except NoResultFound:
+                        # Stale cache: user doesn't exist in DB
+                        await redis_client.delete(email_key)
+                        return service_pb2.LoginResponse(success=False, message="Invalid email or password.")
+                    
                     user.failed_login_attempts += 1
                     if user.failed_login_attempts >= 5:
                         user.locked_until = now + timedelta(minutes=15)
@@ -159,7 +166,12 @@ async def handle_login(request: service_pb2.LoginRequest):
                 # Update User metadata
                 user_stmt = select(User).where(User.id == user_id_obj)
                 user_res = await session.execute(user_stmt)
-                user = user_res.scalar_one()
+                try:
+                    user = user_res.scalar_one()
+                except NoResultFound:
+                    # Stale cache: user doesn't exist in DB
+                    await redis_client.delete(email_key)
+                    return service_pb2.LoginResponse(success=False, message="Invalid email or password.")
                 user.failed_login_attempts = 0
                 user.locked_until = None
                 user.last_login_at = datetime.now(timezone.utc)

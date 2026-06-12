@@ -210,3 +210,104 @@ Asynchronous background operations leverage a Celery app configuration.
     * Dispatched from the registration service thread with `.delay()`.
     * Utilizes `smtplib` to authenticate against SMTP endpoints defined in configurations.
     * Initiates secure communication protocols via `.starttls()`, logs credentials, and fires emails containing dynamic verification tokens formatted within templates (`services/auth_service/templates/verification_email.html`).
+
+---
+
+## 7. ChatAI Service & AI Agent Architecture (`services/chatai-service`)
+
+The ChatAI Service runs an agentic workflow using **LangGraph** to automate support interactions on connected platforms (Telegram, Instagram) with human fallback controls.
+
+### 7.1 State Graph Workflow (`ai/graph.py`)
+
+The conversational logic is implemented as a StateGraph containing state transitions:
+
+```mermaid
+graph TD
+    START --> Chat[chat Node]
+    Chat -->|Conditional Edge: _should_continue| ToolDecision{Tool requested?}
+    
+    ToolDecision -->|Standard Tool Calls| ToolsNode[tools Node]
+    ToolsNode --> Chat
+    
+    ToolDecision -->|generate_product_card| ProductCardNode[generate_product_card Node]
+    ProductCardNode --> END
+    
+    ToolDecision -->|No Tool Calls| SynthNode[synthesizer Node]
+    SynthNode --> END
+```
+
+#### Node Definitions:
+* **`chat` Node**: Formulates the prompt and invokes the LLM. It dynamically rebuilds the system message on every execution turn to include active CRM context, system rules, and summaries.
+* **Conditional Edge (`_should_continue`)**: Inspects the LLM's response. If the LLM generates a tool call, the edge routes the execution. If it requests `generate_product_card`, it routes to the specialized product rendering node. If it requests any other tool, it routes to `tools`. Otherwise, it proceeds to the `synthesizer` to conclude.
+* **`tools` Node**: Invokes standard tool functions (RAG search, ticketing, order operations) and routes execution back to the `chat` node to evaluate the outcomes.
+* **`generate_product_card` Node**: Pulls catalog metadata via the `Workers` gRPC client, parses the item details (including its secure encryption `share_url`), appends a structured card data payload to the state graph, and completes.
+* **`synthesizer` Node**: Performs final string cleansing. It strips out markdown styles (such as bolding or header symbols) from the response text, ensuring compatibility with plain-text messaging platforms (Telegram/Instagram).
+
+### 7.2 Conversation State & Memory Checkpointing (`ai/state.py` / `ai/agent.py`)
+
+The conversation state is represented by `AgentState`, which records chat parameters:
+* `messages`: Chronological list of message objects.
+* `organization_id` & `organization_name`: Active tenant details.
+* `platform`: Client messenger channel (`telegram`, `instagram`).
+* `sender_id` & `chat_id`: External messaging identifiers.
+* `bot_name` & `bot_token`: API metadata of the responding bot.
+* `system_prompt` & `auto_order_enabled`: Active rules configured by the organization admin.
+* `customer_name`: Target customer's display name.
+* `image_urls` & `products`: Accumulators tracking assets returned to the customer.
+
+#### State Storage:
+* State graphs are compiled using **`MongoDBSaver`** checkpointing.
+* The conversation thread is keyed using a dynamic `thread_id` formatted as: `[platform]+[chat_id]+[sender_id]`.
+
+### 7.3 Hybrid Context Synchronization (Human-AI Merge)
+
+To allow seamless transitions between AI automation and manual human intervention in the web dashboard, the agent implements a synchronization process:
+
+```
+                  MongoDB Message Log (Unified System of Record)
+             +-------------------------------------------------------+
+             | Msg 1 (Inbound) | Msg 2 (Outbound) | Msg 3 (Human DM) |
+             +-----------------+------------------+------------------+
+                                        |                   |
+   Checkpointer State Graph             v Alignment         v Sync Range
++----------------------------+   +-----------------------------------+
+| Msg 1 (Inbound)            |   | Extract and convert newer messages|
+| Msg 2 (Outbound) [Aligned] | =>| and inject them into LangGraph    |
++----------------------------+   | before LLM execution              |
+                                 +-----------------------------------+
+```
+
+1. **Query Unified Log**: `run_agent` queries the conversation's MongoDB document, which acts as the unified system of record, logging *all* incoming/outgoing messages (including manual replies sent by human agents from the dashboard inbox).
+2. **Find Alignment Index**: It checks the checkpointer's message history and finds the last message that matches the MongoDB history (aligning by direction and text contents).
+3. **Synchronize Newer Messages**: If a human agent intervened and sent messages manually, the checkpointer state would be out of sync. The merger detects this gap and appends all subsequent messages from MongoDB (converting them to `HumanMessage` or `AIMessage` wrappers) directly into the LangGraph state.
+4. **Resubmit to LLM**: The state is updated with the full unified context before the LLM runs. This guarantees that the AI agent is fully aware of manual human replies and user responses.
+
+### 7.4 Dynamic Prompt & CRM Assembly (`ai/memory.py`)
+
+The `build_system_message` function dynamically generates the LLM's system instructions:
+* **Instructions & Guidelines**: Inject the organization's custom system prompt and standard operational rules (truth enforcement, stock query requirements, visual card rules, plain-text limits, prompt injection guardrails).
+* **CRM Details**: Queries the PostgreSQL `customers` table using the sender ID and platform. If a profile is found with `phone` or `delivery_address` on file, these details are dynamically injected into the system prompt. The LLM is instructed to use these details directly to place orders, bypassing redundant questions.
+* **Context Summaries**: Merges the current message history with a running `previous_summary` (generated when history tokens exceed limits) to maintain context without overloading the LLM's token window.
+
+### 7.5 RAG Search Pipeline (`ai/tools/rag/`)
+
+Sahayak implements RAG using a vector database setup:
+* **Vector Database**: **Pinecone** index (`PINECONE_API_KEY`, `PINECONE_INDEX_HOST`).
+* **Embeddings**: Uses Pinecone's built-in inference embedding model **`multilingual-e5-large`**.
+* **Chunking (`rag_indexer.py`)**: Split text documents into 500-character chunks with a 50-character overlap. Splits are prioritized on sentence boundaries. Deterministic chunk IDs are computed using MD5: `MD5(org_id + ":chunk:" + index)`.
+* **Data Isolation**: Chunks are upserted into organizational namespaces (`namespace=organization_id`). Vector searches are executed against the specific organization's namespace with metadata filters (`organization_id == target_org_id`), providing strict data isolation between tenants.
+
+### 7.6 Custom Tools Ecosystem (`ai/tools/`)
+
+The agent has access to tools executing backend logic:
+* **Catalog Exploration**:
+  * `search_products(query)`: Queries PostgreSQL for products matching keyword/semantic constraints.
+  * `check_stock(product_id)`: Verifies product inventory.
+  * `generate_product_card(product_ids)`: Triggers detail generation (incorporating title, price, and secure `share_url`).
+* **E-Commerce Transactions**:
+  * `place_order(product_id, quantity, customer_phone, delivery_address)`: Creates orders in PostgreSQL via workers.
+  * `get_order_details(order_id)`: Checks order status and details.
+  * `initiate_refund(order_id, reason)`: Initiates return workflows.
+* **Support Escalation**:
+  * `create_support_ticket(title, description, priority)`: Creates support tickets.
+  * `handoff_to_human(reason)`: Disables AI assignment (`ai_assigned = False` in MongoDB) and routes the thread back to the human agent inbox.

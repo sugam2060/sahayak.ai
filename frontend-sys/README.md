@@ -278,3 +278,26 @@ The core user experience is structured as a unified 3-pane layout workspace:
   * Action buttons scale down on click (`active:scale-95`).
 * **Loading Spinners**:
   * Embedded loader widgets leverage double-ring styling animations (`animate-spin border-t-indigo-600`) to represent ongoing data synchronization.
+
+---
+
+## 11. Public Shared Product Pages & Whitelist Routing
+
+The platform allows external customers to view detailed product information directly from social media links via secure landing pages.
+
+### 11.1 Dynamic Shared Product Page (`app/[org_slug]/[token]/page.tsx`)
+
+* **Routing**: Uses the dynamic path segment `/[org_slug]/[token]` to resolve queries.
+* **Component**: Uses [SharedProductDetail.tsx](file:///d:/sahayak_ai/frontend-sys/components/sharedProduct/SharedProductDetail.tsx) to display product data.
+* **Functional Elements**:
+  * **Uncropped Images**: Displays the full product image via `object-contain` to preserve product dimensions.
+  * **Price Representation**: Formatted using native `Intl.NumberFormat` matching currency settings, avoiding decimal divisions by 100.
+  * **Specifications**: Renders structured technical specifications (e.g. brand, category, dimensions) in a responsive grid.
+
+### 11.2 Next.js Proxy Auth Bypass (`proxy.ts`)
+
+Next.js 16+ routing handles URL pathing and redirects. To allow dynamic public shared product pages to load without prompting visitors to log in:
+1. **Segment Extraction**: The proxy middleware inspects incoming path patterns.
+2. **Whitelist Rule**: Paths matching the structure `/[org_slug]/[token]` (where `token` corresponds to the encrypted organization-product hash) are dynamically whitelisted.
+3. **Execution**: The proxy router skips identity verification redirects for these matched segments, forwarding requests directly to the Next.js server components.
+

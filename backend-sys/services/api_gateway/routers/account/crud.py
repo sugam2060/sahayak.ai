@@ -18,7 +18,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.auth_service.auth_utils import hash_password, verify_password
+from shared.auth_utils import hash_password, verify_password
 from shared.config import FRONTEND_URL, BACKEND_URL
 from shared.database.schema.users import User
 from shared.kafka_producer import KafkaProducerPool

@@ -96,23 +96,20 @@ class TelegramPlatformHandler(BasePlatformHandler):
         if not ai_enabled:
             ai_assigned = False
         else:
-            bot_id = conv.get("bot_id") if conv else None
-            # If conversation is actively locked by a human user, AI is not assigned
-            if bot_id and bot_id != "ai":
-                ai_assigned = False
+            any_agent_online = await self._is_any_agent_online(org_id)
+            if not any_agent_online:
+                # If no user/agent is online, AI auto reply should be on
+                ai_assigned = True
             else:
-                # Check if any agents with chat permissions are online
-                any_agent_online = await self._is_any_agent_online(org_id)
-                if any_agent_online:
-                    assigned_user = conv.get("assigned_user") if conv else None
-                    if assigned_user:
-                        ai_assigned = False
-                    else:
-                        # Respect manually toggled AI state if conversation exists, otherwise default to False
-                        ai_assigned = conv.get("ai_assigned", False) if conv else False
+                bot_id = conv.get("bot_id") if conv else None
+                assigned_user = conv.get("assigned_user") if conv else None
+                # If a human user intervened in the chat, AI is not assigned
+                if assigned_user or (bot_id and bot_id != "ai"):
+                    ai_assigned = False
                 else:
-                    # No agents online: AI auto reply takes over
-                    ai_assigned = True
+                    # Default to True automatically if AI is enabled and agents are online,
+                    # respecting manual user toggle if it exists in the conversation history.
+                    ai_assigned = conv.get("ai_assigned", True) if conv else True
         
         now = datetime.now(timezone.utc)
         await self.db.conversations.update_one({

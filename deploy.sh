@@ -36,7 +36,7 @@ build_and_push() {
   echo "=================================================="
   
   # Build from the backend-sys context
-  docker build --platform linux/amd64 --target "$target" -t "$DOCKER_USER/$image_name:latest" "$DEVICES_DIR"
+  docker build --provenance=false --platform linux/amd64 --target "$target" -t "$DOCKER_USER/$image_name:latest" "$DEVICES_DIR"
   
   # Push to Docker Hub
   docker push "$DOCKER_USER/$image_name:latest"
@@ -77,8 +77,13 @@ echo "=================================================="
 # echo "--> Copying updated docker-compose.yml to remote server..."
 # scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$DEVICES_DIR/docker-compose.yml" "ubuntu@$EC2_IP:/app/docker-compose.yml"
 
+# Copy key to a location inside native Linux filesystem where chmod is supported
+TEMP_KEY_FILE="/tmp/aws-key"
+cp "$KEY_FILE" "$TEMP_KEY_FILE"
+chmod 600 "$TEMP_KEY_FILE"
+
 # SSH, bypass prompt, and run remote commands
-ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "ubuntu@$EC2_IP" << 'EOF'
+ssh -i "$TEMP_KEY_FILE" -o StrictHostKeyChecking=no "ubuntu@$EC2_IP" << 'EOF'
   cd /app
   echo "--> Pulling latest Docker images..."
   sudo docker compose pull
@@ -87,3 +92,5 @@ ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "ubuntu@$EC2_IP" << 'EOF'
   echo "--> Deployment complete!"
   sudo docker ps
 EOF
+# Clean up temp key
+rm -f "$TEMP_KEY_FILE"

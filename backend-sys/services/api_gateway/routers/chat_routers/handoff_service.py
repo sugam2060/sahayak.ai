@@ -566,56 +566,7 @@ class ChatHandoffService:
             logger.error(f"Error expiring handoff {handoff_id}: {e}", exc_info=True)
 
 
-async def get_eligible_online_users(org_id: str, db: "AsyncSession", presence_service: "PresenceService", exclude_user_id: str) -> list["User"]:
-    """Query and filter online users in the org who have 'chats' permission."""
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from shared.database.schema.users import User
-    from services.api_gateway.routers.presence.presence_service import PresenceService
-    from sqlalchemy import select
-    from uuid import UUID
-
-    # 1. Get all online users for this org (within 5 mins)
-    online_user_ids = await presence_service.get_org_online_users(org_id, within_seconds=300)
-    if not online_user_ids:
-        return []
-
-    # 2. Get active users from PostgreSQL
-    user_uuids = []
-    for uid in online_user_ids:
-        if str(uid) == str(exclude_user_id):
-            continue
-        try:
-            user_uuids.append(UUID(uid))
-        except Exception:
-            pass
-            
-    if not user_uuids:
-        return []
-        
-    try:
-        org_uuid = UUID(org_id)
-    except ValueError:
-        return []
-        
-    stmt = select(User).where(
-        User.organization_id == org_uuid,
-        User.id.in_(user_uuids),
-        User.is_active == True
-    )
-    res = await db.execute(stmt)
-    users = res.scalars().all()
-    
-    # 3. Filter users who have "chats" permission
-    from services.api_gateway.routers.auth_routers.me import get_user_permissions
-    eligible_users = []
-    for user in users:
-        role_str = user.role.value if hasattr(user.role, 'value') else str(user.role)
-        perms = await get_user_permissions(db, str(user.id), role_str)
-        if "chats" in perms:
-            eligible_users.append(user)
-            
-    return eligible_users
-
+from shared.presence_service import get_eligible_online_users
 
 async def handle_user_offline(org_id: str, user_id: str):
     """

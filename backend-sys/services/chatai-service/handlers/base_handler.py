@@ -17,8 +17,7 @@ class BasePlatformHandler(ABC):
         """Check if any agent with 'chats' permission is online for the organization."""
         try:
             from shared.database.engine import SessionLocal
-            from services.api_gateway.routers.chat_routers.handoff_service import get_eligible_online_users
-            from services.api_gateway.routers.presence.presence_service import PresenceService
+            from shared.presence_service import get_eligible_online_users, PresenceService
             from shared.redis_pool import RedisPool
 
             redis_client = RedisPool.get_client()
