@@ -12,7 +12,7 @@ class OrganizationConfigAI(Base):
     
     ai_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_order_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    system_prompt: Mapped[str] = mapped_column(String(500), nullable=True)
+    system_prompt: Mapped[str] = mapped_column(String(800), nullable=True)
     knowledge_base: Mapped[str] = mapped_column(Text, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("now()"))

@@ -340,15 +340,15 @@ export default function AIConfigPage() {
               <label className="text-lg font-semibold text-zinc-900 dark:text-white block">
                 System Agent Instructions
               </label>
-              <span className={`text-xs font-semibold ${systemPrompt.length >= 450 ? 'text-red-500' : 'text-zinc-400'}`}>
-                {systemPrompt.length}/500 chars
+              <span className={`text-xs font-semibold ${systemPrompt.length >= 750 ? 'text-red-500' : 'text-zinc-400'}`}>
+                {systemPrompt.length}/800 chars
               </span>
             </div>
             <textarea
               rows={6}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              maxLength={500}
+              maxLength={800}
               placeholder="Example: You are a friendly customer agent at Sahayak Shop. Help customers place orders, answer product queries, and resolve shipping issues."
               className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-transparent p-3 text-sm transition-colors outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:bg-zinc-800/30"
             />

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/ai-config")
 class AIConfigUpdate(BaseModel):
     ai_enabled: bool
     auto_order_enabled: bool
-    system_prompt: Optional[str] = Field("", max_length=500)
+    system_prompt: Optional[str] = Field("", max_length=800)
     knowledge_base: Optional[str] = ""
 
 @router.get("")
