@@ -99,7 +99,7 @@ app.add_middleware(
     SlidingWindowRateLimiter, 
     window_size=60, 
     max_requests=10,
-    include_paths=["/auth", "/chat", "/health"],
+    include_paths=["/auth", "/chat"],
     exclude_paths=["/auth/me"]
 )
 

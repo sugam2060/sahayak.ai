@@ -52,3 +52,35 @@ def test_rate_limiter_allows_options_requests(test_client, mock_redis_client):
     )
     # CORSMiddleware should handle the OPTIONS request and return OK (usually 200)
     assert response_options.status_code == status.HTTP_200_OK
+
+
+def test_rate_limiter_fail_open_on_redis_error(test_client, mock_redis_client):
+    # Force building the middleware stack if it hasn't been built yet
+    if test_client.app.middleware_stack is None:
+        test_client.app.middleware_stack = test_client.app.build_middleware_stack()
+
+    # Find the SlidingWindowRateLimiter instance in the FastAPI middleware stack
+    rate_limiter_instance = None
+    curr = test_client.app.middleware_stack
+    while curr is not None:
+        if curr.__class__.__name__ == "SlidingWindowRateLimiter":
+            rate_limiter_instance = curr
+            break
+        curr = getattr(curr, "app", None)
+
+    assert rate_limiter_instance is not None, "Could not find SlidingWindowRateLimiter in middleware stack"
+    
+    # Configure the redis mock to raise an exception on execute()
+    mock_pipe = AsyncMock()
+    mock_pipe.get = MagicMock()
+    mock_pipe.execute = AsyncMock(side_effect=Exception("Redis connection error or quota limit exceeded"))
+    
+    rate_limiter_instance.redis.pipeline = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_pipe))
+    )
+    
+    # Send a request with empty payload. The rate limiter should fail open,
+    # and the request should proceed to FastAPI's validator, returning 422 Unprocessable Entity instead of 500 or 429.
+    response = test_client.post("/auth/register", json={})
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
